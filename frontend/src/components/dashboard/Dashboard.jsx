@@ -58,6 +58,7 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
   const [assets, setAssets]     = useState([]);
   const [controls, setControls] = useState([]);
   const [diagRisks, setDiagRisks] = useState(diagnosticRisks || []);
+  const [audits, setAudits]     = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
 
@@ -66,14 +67,16 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
       setLoading(true);
       setError('');
       try {
-        const [risksRes, assetsRes, soaRes] = await Promise.all([
+        const [risksRes, assetsRes, soaRes, auditsRes] = await Promise.all([
           axios.get(`/api/risks?organization_id=${organizationId}`),
           axios.get(`/api/assets?organization_id=${organizationId}`),
           axios.get(`/api/soa?organization_id=${organizationId}`),
+          axios.get(`/api/audits?organization_id=${organizationId}`).catch(()=>({data:{data:[]}})),
         ]);
         setRisks(risksRes.data.data   || []);
         setAssets(assetsRes.data.data || []);
         setControls(soaRes.data.data  || []);
+        setAudits(auditsRes.data.data || []);
 
         if (!diagnosticRisks || diagnosticRisks.length === 0) {
           try {
@@ -475,6 +478,64 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
           </div>
         </div>
 
+
+        {/* ── Resumen de auditorías ── */}
+        <div className="glass-panel">
+          <div className="section-header" style={{ marginBottom:'1rem' }}>
+            <h3 style={{ margin:0, fontSize:'1.1rem' }}>Auditorías</h3>
+            <button className="btn-primary outline" style={{ padding:'0.3rem 0.75rem', fontSize:'0.8rem' }}
+              onClick={() => onNavigate('audits')}>
+              Ver todas
+            </button>
+          </div>
+          {audits.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'1.5rem 0' }}>
+              <p className="text-secondary" style={{ marginBottom:'0.75rem' }}>No hay auditorías registradas.</p>
+              <button className="btn-primary" style={{ fontSize:'0.82rem', padding:'0.5rem 1rem' }}
+                onClick={() => onNavigate('audits')}>
+                Registrar primera auditoría
+              </button>
+            </div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
+              {/* Mini KPIs */}
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'0.5rem', marginBottom:'0.75rem' }}>
+                {[
+                  [audits.filter(a=>a.status==='IN_PROGRESS').length, 'En proceso', 'var(--warning)'],
+                  [audits.filter(a=>a.status==='COMPLETED').length,   'Terminadas', 'var(--success)'],
+                  [audits.filter(a=>a.rating==='NOT_APPROVED').length,'No aprobadas','var(--danger)'],
+                ].map(([n,label,color]) => (
+                  <div key={label} style={{ background:'rgba(0,0,0,.2)', borderRadius:8, padding:'0.6rem', textAlign:'center' }}>
+                    <div style={{ fontSize:'1.4rem', fontWeight:700, color, lineHeight:1 }}>{n}</div>
+                    <div style={{ fontSize:'0.68rem', color:'var(--text-secondary)', marginTop:'0.2rem' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Últimas auditorías */}
+              {audits.slice(0,3).map(a => {
+                const pct = a.action_plan_stage > 0 ? Math.round((a.action_plan_stage/10)*100) : 0;
+                const stColor = a.status==='COMPLETED'?'var(--success)':a.status==='IN_PROGRESS'?'var(--warning)':'var(--text-secondary)';
+                const stLabel = a.status==='COMPLETED'?'Terminada':a.status==='IN_PROGRESS'?'En proceso':'No iniciada';
+                return (
+                  <div key={a.id} onClick={()=>onNavigate('audits')}
+                    style={{ padding:'0.6rem 0.75rem', background:'rgba(0,0,0,.15)', borderRadius:8, cursor:'pointer' }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.3rem' }}>
+                      <span style={{ fontSize:'0.85rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'60%' }}>{a.title}</span>
+                      <span style={{ fontSize:'0.7rem', fontWeight:600, color:stColor, flexShrink:0 }}>{stLabel}</span>
+                    </div>
+                    <div style={{ height:4, background:'rgba(255,255,255,.06)', borderRadius:2, overflow:'hidden' }}>
+                      <div style={{ height:4, width:`${pct}%`, background:pct===100?'var(--success)':'var(--accent)', borderRadius:2 }} />
+                    </div>
+                    <div style={{ fontSize:'0.7rem', color:'var(--text-secondary)', marginTop:'0.25rem' }}>
+                      Plan de acción: {pct}%
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* ── Acciones rápidas ── */}
         <div className="glass-panel">
           <h3 style={{ margin:'0 0 1rem', fontSize:'1.1rem' }}>🚀 Acciones rápidas</h3>
@@ -500,7 +561,7 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
           </div>
         </div>
 
-      </div>
+        </div>
     </div>
   );
 };

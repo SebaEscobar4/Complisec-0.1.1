@@ -1,9 +1,5 @@
 import { query } from '../config/db.js';
 
-/**
- * Guarda o actualiza el perfil de riesgo del diagnóstico inicial.
- * Usa INSERT ... ON CONFLICT para que re-ejecutar el onboarding no genere duplicados.
- */
 export const saveDiagnostic = async (organizationId, risks) => {
   for (const r of risks) {
     await query(
@@ -22,10 +18,6 @@ export const saveDiagnostic = async (organizationId, risks) => {
   }
 };
 
-/**
- * Obtiene el perfil de riesgo diagnóstico de una organización,
- * ordenado de mayor a menor riesgo.
- */
 export const getDiagnostic = async (organizationId) => {
   const result = await query(
     `SELECT domain_key, domain_label, probability, impact_value, risk_score, risk_level_label
@@ -35,4 +27,34 @@ export const getDiagnostic = async (organizationId) => {
     [organizationId]
   );
   return result.rows;
+};
+
+/**
+ * Guarda o actualiza el responsable de seguridad y compromisos
+ * en la tabla organizations.
+ */
+export const saveOfficerData = async (organizationId, { officerName, officerRole, reviewFrequency, commitments }) => {
+  await query(
+    `UPDATE organizations
+     SET security_officer_name = $1,
+         security_officer_role = $2,
+         review_frequency      = $3,
+         commitments           = $4::jsonb,
+         updated_at            = CURRENT_TIMESTAMP
+     WHERE id = $5`,
+    [officerName || null, officerRole || null, reviewFrequency || '12m', JSON.stringify(commitments || []), organizationId]
+  );
+};
+
+/**
+ * Obtiene los datos del responsable y compromisos de la organización.
+ */
+export const getOfficerData = async (organizationId) => {
+  const result = await query(
+    `SELECT security_officer_name, security_officer_role, review_frequency, commitments
+     FROM organizations
+     WHERE id = $1`,
+    [organizationId]
+  );
+  return result.rows[0] || null;
 };

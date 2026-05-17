@@ -1,12 +1,8 @@
-import { saveDiagnostic, getDiagnostic } from '../services/diagnosticService.js';
+import { saveDiagnostic, getDiagnostic, saveOfficerData, getOfficerData } from '../services/diagnosticService.js';
 
-/**
- * POST /api/diagnostic
- * Guarda el perfil de riesgo calculado durante el onboarding.
- */
 export const handleSaveDiagnostic = async (req, res, next) => {
   try {
-    const { organization_id, risks } = req.body;
+    const { organization_id, risks, officer } = req.body;
 
     if (!organization_id || !Array.isArray(risks)) {
       return res.status(400).json({ error: 'Bad Request', message: 'organization_id y risks son requeridos.' });
@@ -14,16 +10,17 @@ export const handleSaveDiagnostic = async (req, res, next) => {
 
     await saveDiagnostic(organization_id, risks);
 
+    // Guardar responsable y compromisos si vienen en el body
+    if (officer) {
+      await saveOfficerData(organization_id, officer);
+    }
+
     return res.status(201).json({ message: 'Diagnóstico guardado correctamente.' });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * GET /api/diagnostic?organization_id=:id
- * Obtiene el perfil de riesgo del diagnóstico inicial.
- */
 export const handleGetDiagnostic = async (req, res, next) => {
   try {
     const { organization_id } = req.query;
@@ -32,9 +29,12 @@ export const handleGetDiagnostic = async (req, res, next) => {
       return res.status(400).json({ error: 'Bad Request', message: 'organization_id es requerido.' });
     }
 
-    const risks = await getDiagnostic(organization_id);
+    const [risks, officer] = await Promise.all([
+      getDiagnostic(organization_id),
+      getOfficerData(organization_id),
+    ]);
 
-    return res.status(200).json({ data: risks });
+    return res.status(200).json({ data: risks, officer });
   } catch (error) {
     next(error);
   }

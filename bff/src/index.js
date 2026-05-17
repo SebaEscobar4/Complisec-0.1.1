@@ -9,6 +9,7 @@ import soaRoutes from './routes/soa.js';
 import authRoutes from './routes/auth.js';
 import evidenceRoutes from './routes/evidences.js';
 import diagnosticRoutes from './routes/diagnostic.js';
+import auditRoutes      from './routes/audits.js';
 import { seedControls } from './scripts/seedControls.js';
 
 dotenv.config();
@@ -27,7 +28,8 @@ app.use('/api/assets',     assetRoutes);
 app.use('/api/risks',      riskRoutes);
 app.use('/api/soa',        soaRoutes);
 app.use('/api/evidences',  evidenceRoutes);
-app.use('/api/diagnostic', diagnosticRoutes);  // ← nuevo
+app.use('/api/diagnostic', diagnosticRoutes);
+app.use('/api/audits',     auditRoutes);  // ← nuevo
 
 // Health check
 app.get('/health', (req, res) => {

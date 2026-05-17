@@ -12,8 +12,153 @@ const riskMeta = (score) => {
   return               { color: 'var(--success)', label: 'Bajo'    };
 };
 
-const STEPS = ['Empresa','Infraestructura','Acceso A.9','Operaciones A.12','Incidentes A.16','Perfil de riesgo','Revisión'];
+const STEPS = ['Empresa','Personas A.6','Físico A.7','Incidentes A.16','Perfil de riesgo','Activos','Revisión'];
 const TRI_MAP = { no: 88, sin: 52, ok: 14 };
+
+// ─── Catálogo de activos predefinidos ─────────────────────────────────────────
+// Cada activo tiene valores C-I-A preconfigurados + amenazas automáticas
+const ASSET_CATALOG = {
+  // ── Datos ──
+  'Base de datos de clientes': {
+    category: '💾 Datos', icon: '🗄️',
+    c: 5, i: 5, a: 4,
+    description: 'Registros personales, historiales y datos de contacto de clientes.',
+    threats: [
+      { threat: 'Acceso no autorizado a datos personales', vulnerability: 'Sin cifrado en reposo o control de acceso débil', likelihood: 4, impact: 5 },
+      { threat: 'Exfiltración de datos por empleado interno', vulnerability: 'Sin logs de auditoría ni monitoreo de acceso', likelihood: 3, impact: 5 },
+    ],
+  },
+  'Base de datos de empleados / RRHH': {
+    category: '💾 Datos', icon: '👥',
+    c: 5, i: 4, a: 3,
+    description: 'Contratos, remuneraciones, datos personales del equipo.',
+    threats: [
+      { threat: 'Filtración de datos sensibles de personal', vulnerability: 'Acceso no restringido por rol', likelihood: 3, impact: 4 },
+    ],
+  },
+  'Correos corporativos': {
+    category: '💾 Datos', icon: '📧',
+    c: 4, i: 3, a: 4,
+    description: 'Servicio de correo electrónico empresarial.',
+    threats: [
+      { threat: 'Phishing o suplantación de identidad', vulnerability: 'Sin MFA activado en cuentas de correo', likelihood: 4, impact: 4 },
+      { threat: 'Intercepción de comunicaciones', vulnerability: 'Sin cifrado de correos salientes (TLS)', likelihood: 2, impact: 3 },
+    ],
+  },
+  'Repositorio de código fuente': {
+    category: '💾 Datos', icon: '📦',
+    c: 4, i: 5, a: 3,
+    description: 'Git o similar con el código de los sistemas.',
+    threats: [
+      { threat: 'Robo de propiedad intelectual', vulnerability: 'Repositorios públicos o sin control de acceso', likelihood: 3, impact: 5 },
+      { threat: 'Inyección de código malicioso', vulnerability: 'Sin revisión de código ni protección de rama principal', likelihood: 2, impact: 5 },
+    ],
+  },
+  // ── Sistemas ──
+  'Sistema ERP / contabilidad': {
+    category: '🖥️ Sistemas', icon: '📊',
+    c: 4, i: 5, a: 5,
+    description: 'Sistema de gestión empresarial, facturación o contabilidad.',
+    threats: [
+      { threat: 'Manipulación de registros financieros', vulnerability: 'Sin segregación de funciones en el sistema', likelihood: 3, impact: 5 },
+      { threat: 'Ransomware que cifra los datos contables', vulnerability: 'Backups no probados o sin aislamiento', likelihood: 3, impact: 5 },
+    ],
+  },
+  'Aplicación web / sitio corporativo': {
+    category: '🖥️ Sistemas', icon: '🌐',
+    c: 3, i: 4, a: 5,
+    description: 'Sitio web, portal de clientes o aplicación web pública.',
+    threats: [
+      { threat: 'Defacement o inyección SQL', vulnerability: 'Sin WAF ni escaneo de vulnerabilidades periódico', likelihood: 3, impact: 4 },
+      { threat: 'Denegación de servicio (DDoS)', vulnerability: 'Sin protección anti-DDoS ni escalado automático', likelihood: 2, impact: 4 },
+    ],
+  },
+  'Sistema de backups': {
+    category: '🖥️ Sistemas', icon: '💿',
+    c: 3, i: 4, a: 5,
+    description: 'Solución de respaldo de datos críticos.',
+    threats: [
+      { threat: 'Backups cifrados por ransomware', vulnerability: 'Backups conectados permanentemente a la red', likelihood: 3, impact: 5 },
+      { threat: 'Falla de restauración en incidente', vulnerability: 'Backups no probados regularmente', likelihood: 4, impact: 5 },
+    ],
+  },
+  // ── Infraestructura ──
+  'Servidor principal / on-premise': {
+    category: '🌐 Infraestructura', icon: '🖧',
+    c: 4, i: 4, a: 5,
+    description: 'Servidor físico o virtual que aloja aplicaciones críticas.',
+    threats: [
+      { threat: 'Acceso físico no autorizado al servidor', vulnerability: 'Sin control de acceso físico al datacenter', likelihood: 2, impact: 4 },
+      { threat: 'Vulnerabilidades del sistema operativo', vulnerability: 'Sin gestión de parches periódica', likelihood: 3, impact: 4 },
+    ],
+  },
+  'Servicios en la nube (AWS / Azure / GCP)': {
+    category: '🌐 Infraestructura', icon: '☁️',
+    c: 4, i: 4, a: 4,
+    description: 'Infraestructura cloud que soporta los sistemas de la organización.',
+    threats: [
+      { threat: 'Configuración incorrecta de buckets o permisos', vulnerability: 'Sin revisión periódica de configuración cloud', likelihood: 4, impact: 4 },
+      { threat: 'Acceso con credenciales comprometidas', vulnerability: 'Sin MFA para cuentas cloud con privilegios', likelihood: 3, impact: 5 },
+    ],
+  },
+  'Red corporativa / VPN': {
+    category: '🌐 Infraestructura', icon: '🔌',
+    c: 3, i: 3, a: 5,
+    description: 'Infraestructura de red local y acceso remoto.',
+    threats: [
+      { threat: 'Intercepción de tráfico interno', vulnerability: 'Sin segmentación de red ni monitoreo', likelihood: 2, impact: 3 },
+      { threat: 'Acceso remoto no autorizado', vulnerability: 'VPN sin MFA o con credenciales débiles', likelihood: 3, impact: 4 },
+    ],
+  },
+  // ── Hardware ──
+  'Notebooks / laptops de empleados': {
+    category: '💻 Hardware', icon: '💻',
+    c: 4, i: 3, a: 3,
+    description: 'Computadores portátiles usados por el equipo.',
+    threats: [
+      { threat: 'Robo o pérdida del dispositivo', vulnerability: 'Sin cifrado de disco (BitLocker / FileVault)', likelihood: 3, impact: 4 },
+      { threat: 'Malware instalado por el usuario', vulnerability: 'Sin EDR ni política de instalación de software', likelihood: 3, impact: 3 },
+    ],
+  },
+  'Teléfonos móviles corporativos': {
+    category: '💻 Hardware', icon: '📱',
+    c: 4, i: 2, a: 3,
+    description: 'Smartphones con acceso a correo y sistemas corporativos.',
+    threats: [
+      { threat: 'Pérdida del dispositivo con acceso a sistemas', vulnerability: 'Sin MDM ni borrado remoto configurado', likelihood: 3, impact: 3 },
+    ],
+  },
+  'Dispositivos de red (router, firewall, switches)': {
+    category: '💻 Hardware', icon: '🔧',
+    c: 3, i: 4, a: 5,
+    description: 'Equipos de red que gestionan el tráfico corporativo.',
+    threats: [
+      { threat: 'Explotación de vulnerabilidades de firmware', vulnerability: 'Firmware desactualizado sin parches de seguridad', likelihood: 3, impact: 4 },
+    ],
+  },
+  // ── Personas ──
+  'Credenciales de administrador de sistemas': {
+    category: '🔑 Credenciales', icon: '🔑',
+    c: 5, i: 5, a: 3,
+    description: 'Cuentas con privilegios elevados sobre sistemas críticos.',
+    threats: [
+      { threat: 'Compromiso de cuenta privilegiada', vulnerability: 'Sin MFA ni gestión de contraseñas (PAM)', likelihood: 4, impact: 5 },
+      { threat: 'Uso indebido por empleado con acceso admin', vulnerability: 'Sin registro de actividad de cuentas privilegiadas', likelihood: 3, impact: 5 },
+    ],
+  },
+  // ── Documentación ──
+  'Contratos con clientes / proveedores': {
+    category: '📄 Documentación', icon: '📋',
+    c: 4, i: 4, a: 2,
+    description: 'Acuerdos legales, NDA, contratos de servicio.',
+    threats: [
+      { threat: 'Filtración de condiciones contractuales', vulnerability: 'Contratos almacenados sin control de acceso', likelihood: 2, impact: 3 },
+    ],
+  },
+};
+
+const CATALOG_CATEGORIES = [...new Set(Object.values(ASSET_CATALOG).map(a => a.category))];
+
 
 // ─── TriGroup ────────────────────────────────────────────────────────────────
 function TriGroup({ groupKey, state, onSelect, options }) {
@@ -81,24 +226,26 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
   const [checks, setChecks] = useState(saved?.checks   ?? {});
   const [evSel, setEvSel]   = useState(null);
   const [saving, setSaving] = useState(false);
+  const [assets, setAssets]           = useState(saved?.assets ?? []);
+  const [selectedCatalog, setSelectedCatalog] = useState('');
+  const [officer, setOfficer] = useState({ name:'', role:'' });
+  const [catFilter, setCatFilter]     = useState('');
   const [error, setError]   = useState('');
   const [showResume, setShowResume] = useState(!!saved && saved.step > 0);
 
-  const [sel, setSels] = useState(saved?.sel ?? { dataSensitivity:'', regulation:'No aplica', providers:'', systems:'', patches:'', rto:'', training:'', providerClauses:'' });
+  const [sel, setSels] = useState(saved?.sel ?? { dataSensitivity:'', regulation:'No aplica', providers:'', systems:'', patches:'', rto:'', training:'', providerClauses:'', reviewFreq:'12m' });
   const s = (k,v) => setSels(p => ({...p, [k]:v}));
 
   const [riskData, setRiskData] = useState(saved?.riskData ?? {
-    acceso: { label:'Control de acceso (A.9)', prob:0, impact:0 },
-    cripto: { label:'Criptografía (A.10)',      prob:0, impact:0 },
-    ops:    { label:'Operaciones (A.12)',        prob:0, impact:0 },
-    inc:    { label:'Incidentes (A.16)',         prob:0, impact:0 },
-    cont:   { label:'Continuidad (A.17)',        prob:0, impact:0 },
+    personas: { label:'Seguridad en personas (A.6)', prob:0, impact:0 },
+    fisico:   { label:'Seguridad física (A.7)',       prob:0, impact:0 },
+    inc:      { label:'Gestión de incidentes (A.16)', prob:0, impact:0 },
   });
 
   // Auto-guardar en localStorage cuando cambia el estado
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ step, tri, checks, sel, riskData }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ step, tri, checks, sel, riskData, assets }));
     } catch { /* quota exceeded, ignore */ }
   }, [step, tri, checks, sel, riskData]);
 
@@ -110,17 +257,29 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
     const p = TRI_MAP[v] ?? 0;
     setRiskData(prev => {
       const n = {...prev};
-      if (group==='mfa')     n.acceso = {...n.acceso, prob:p, impact:80};
-      if (group==='cripto')  n.cripto = {...n.cripto, prob:p, impact:85};
-      if (group==='logs')    n.ops    = {...n.ops,    prob:p, impact:75};
-      if (group==='backup')  n.cont   = {...n.cont,   prob:p, impact:78};
-      if (group==='inc')     n.inc    = {...n.inc,    prob:p, impact:70};
-      if (group==='accesos') n.acceso = {...n.acceso, prob:p, impact:80};
+      // Personas (A.6)
+      if (group==='nda')           n.personas = {...n.personas, prob:p, impact:75};
+      if (group==='induccion')     n.personas = {...n.personas, prob:Math.max(n.personas?.prob||0,p), impact:75};
+      if (group==='capacitacion')  n.personas = {...n.personas, prob:p, impact:70};
+      if (group==='salida')        n.acceso   = {...n.acceso,   prob:p, impact:80};
+      // Físico (A.7)
+      if (group==='accesoFisico')  n.fisico   = {...n.fisico,   prob:p, impact:80};
+      if (group==='protAmbiental') n.fisico   = {...n.fisico,   prob:Math.max(n.fisico?.prob||0,p), impact:70};
+      if (group==='escritorioLimpio') n.fisico = {...n.fisico,  prob:Math.max(n.fisico?.prob||0,p), impact:65};
+      // Incidentes
+      if (group==='inc')           n.inc      = {...n.inc,      prob:p, impact:70};
+      if (group==='canalReporte')  n.inc      = {...n.inc,      prob:Math.max(n.inc?.prob||0,p), impact:65};
+      if (group==='registroInc')   n.inc      = {...n.inc,      prob:Math.max(n.inc?.prob||0,p), impact:60};
       return n;
     });
   };
 
   const handleFinish = async () => {
+    // Validar responsable
+    if (!officer.name.trim() || !officer.role.trim()) {
+      setError('El nombre y cargo del responsable de seguridad son obligatorios.');
+      return;
+    }
     setSaving(true); setError('');
     const risks = Object.entries(riskData).map(([key,r]) => {
       const score = calcScore(r.prob, r.impact);
@@ -128,7 +287,45 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
       return { domain_key:key, domain_label:r.label, probability:r.prob, impact_value:r.impact, risk_score:score, risk_level_label:label };
     });
     try {
-      await axios.post('/api/diagnostic', { organization_id:organizationId, risks });
+      await axios.post('/api/diagnostic', {
+        organization_id: organizationId,
+        risks,
+        officer: {
+          officerName:     officer.name,
+          officerRole:     officer.role,
+          reviewFrequency: sel.reviewFreq || '12m',
+          commitments:     Object.keys(checks).filter(k => checks[k]),
+        },
+      });
+      // Guardar activos + riesgos automáticos del catálogo
+      if (assets.length > 0) {
+        for (const a of assets) {
+          try {
+            const assetRes = await axios.post('/api/assets', {
+              organization_id: organizationId,
+              name: a.name,
+              description: a.description || '',
+              confidentiality_req: a.confidentiality_req,
+              integrity_req: a.integrity_req,
+              availability_req: a.availability_req,
+            });
+            // Crear riesgos automáticos para cada amenaza del activo
+            if (assetRes.data?.data?.id && a.threats?.length) {
+              for (const t of a.threats) {
+                await axios.post('/api/risks', {
+                  organization_id: organizationId,
+                  asset_id: assetRes.data.data.id,
+                  threat: t.threat,
+                  vulnerability: t.vulnerability,
+                  likelihood: t.likelihood,
+                  impact: t.impact,
+                  treatment_decision: 'MITIGATE',
+                }).catch(() => {});
+              }
+            }
+          } catch { /* no bloquea */ }
+        }
+      }
       clearSaved();
       onComplete(risks);
     } catch {
@@ -200,72 +397,153 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
       </FG>
     </div>,
 
-    // 1 — Infraestructura
+    // 1 — Personas A.6 / A.7.2
     <div key={1} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
-      <div><h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Infraestructura y proveedores</h2>
-      <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>Determina la superficie de riesgo técnico y los controles aplicables.</p></div>
-      <FG label="¿Proveedores externos con acceso a sus sistemas o datos?" iso="A.15">
-        <Sel value={sel.providers} onChange={e=>s('providers',e.target.value)} placeholder="Seleccionar..." options={[['no','No, todo es interno'],['con','Sí, con contrato de confidencialidad'],['sin','Sí, sin contratos formales']]} />
+      <div>
+        <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.6rem', flexWrap:'wrap' }}>
+          <span style={{ display:'inline-flex', background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.2)', borderRadius:20, padding:'3px 10px', fontSize:'0.75rem', color:'var(--success)', fontWeight:600 }}>A.6 Personas</span>
+          <span style={{ display:'inline-flex', background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.2)', borderRadius:20, padding:'3px 10px', fontSize:'0.75rem', color:'var(--success)', fontWeight:600 }}>A.7.2 Durante el empleo</span>
+        </div>
+        <h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Seguridad en personas</h2>
+        <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>
+          La mayoría de los incidentes de seguridad tienen origen humano. Estas preguntas evalúan tus controles sobre el personal.
+        </p>
+      </div>
+      <FG label="¿Los empleados firman acuerdos de confidencialidad (NDA) al ingresar?" iso="A.6.6">
+        <TriGroup groupKey="nda" state={tri} onSelect={handleTri} options={[
+          ['no','No existe','Sin NDA firmado'],
+          ['sin','Parcial','Algunos roles lo firman'],
+          ['ok','Todos firman','Con registro y fecha'],
+        ]} />
       </FG>
-      <FG label="¿Tienen inventario documentado de activos de información?" iso="A.8">
-        <TriGroup groupKey="inv" state={tri} onSelect={handleTri} options={DEFAULT_TRI} />
+      <FG label="¿Tienen proceso de inducción en seguridad para empleados nuevos?" iso="A.6.2">
+        <TriGroup groupKey="induccion" state={tri} onSelect={handleTri} options={[
+          ['no','No existe','Sin inducción definida'],
+          ['sin','Informal','Sin documentar ni registrar'],
+          ['ok','Documentado','Con registro de asistencia'],
+        ]} />
       </FG>
-      <FG label="¿Cuántos sistemas o aplicaciones críticas tienen?" iso="A.8.1">
-        <Sel value={sel.systems} onChange={e=>s('systems',e.target.value)} placeholder="Seleccionar..." options={[['1-3','Entre 1 y 3'],['4-10','Entre 4 y 10'],['10+','Más de 10']]} />
+      <FG label="¿Los empleados reciben capacitación periódica en seguridad de la información?" iso="A.6.3">
+        <TriGroup groupKey="capacitacion" state={tri} onSelect={handleTri} options={[
+          ['no','Nunca','Sin capacitación'],
+          ['sin','Esporádica','Sin frecuencia fija'],
+          ['ok','Periódica','Al menos 1 vez al año, documentada'],
+        ]} />
+      </FG>
+      <FG label="¿Existe un proceso formal de salida de empleados (revocación de accesos, devolución de equipos)?" iso="A.6.5">
+        <TriGroup groupKey="salida" state={tri} onSelect={handleTri} options={[
+          ['no','No existe','Se hace ad-hoc'],
+          ['sin','Existe','Sin checklist formal'],
+          ['ok','Documentado','Checklist con responsable y firma'],
+        ]} />
+      </FG>
+      <FG label="¿Los empleados conocen las consecuencias del incumplimiento de políticas de seguridad?" iso="A.6.4">
+        <Sel value={sel.sancionesConocimiento || ''} onChange={e=>s('sancionesConocimiento',e.target.value)} placeholder="Seleccionar..."
+          options={[
+            ['no','No, no hay política disciplinaria definida'],
+            ['parcial','Sí, pero no se comunica formalmente'],
+            ['si','Sí, está en el contrato y se comunica en la inducción'],
+          ]} />
       </FG>
     </div>,
 
-    // 2 — Acceso
+    // 2 — Físico A.7.1 / A.7.2
     <div key={2} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
-      <div><div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.6rem', flexWrap:'wrap' }}><Badge>A.9 Control de acceso</Badge><Badge>A.10 Criptografía</Badge></div>
-      <h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Identidad y protección de datos</h2>
-      <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>Tus respuestas calculan la probabilidad de riesgo en estos dominios en tiempo real.</p></div>
-      <FG label="¿Tienen proceso para dar/quitar accesos cuando alguien entra o sale?" iso="A.9.2">
-        <TriGroup groupKey="accesos" state={tri} onSelect={handleTri} options={[['no','No existe','Informal'],['sin','Existe','Sin documentar'],['ok','Documentado','Con responsable']]} />
+      <div>
+        <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.6rem', flexWrap:'wrap' }}>
+          <span style={{ display:'inline-flex', background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.2)', borderRadius:20, padding:'3px 10px', fontSize:'0.75rem', color:'var(--success)', fontWeight:600 }}>A.7.1 Perímetros físicos</span>
+          <span style={{ display:'inline-flex', background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.2)', borderRadius:20, padding:'3px 10px', fontSize:'0.75rem', color:'var(--success)', fontWeight:600 }}>A.7.2 Controles de entrada</span>
+        </div>
+        <h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Seguridad física y del entorno</h2>
+        <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>
+          Los controles físicos protegen los activos ante acceso no autorizado, daño o interferencia.
+        </p>
+      </div>
+      <FG label="¿Las áreas con sistemas o datos críticos tienen acceso restringido?" iso="A.7.1">
+        <TriGroup groupKey="accesoFisico" state={tri} onSelect={handleTri} options={[
+          ['no','Sin restricción','Cualquiera puede acceder'],
+          ['sin','Parcial','Solo llave/tarjeta, sin registro'],
+          ['ok','Controlado','Con registro de acceso y responsable'],
+        ]} />
       </FG>
-      <FG label="¿Los sistemas críticos usan autenticación de doble factor (MFA)?" iso="A.9.4.2">
-        <TriGroup groupKey="mfa" state={tri} onSelect={handleTri} options={[['no','No existe','Solo contraseña'],['sin','Parcial','Solo algunos'],['ok','Implementado','Con evidencia']]} />
+      <FG label="¿Los servidores o equipos críticos están en áreas con protección ambiental (temperatura, humedad, UPS)?" iso="A.7.5">
+        <TriGroup groupKey="protAmbiental" state={tri} onSelect={handleTri} options={[
+          ['no','Sin protección','Equipos expuestos'],
+          ['sin','Básica','Solo ventilación, sin UPS'],
+          ['ok','Adecuada','Aire acondicionado + UPS + monitoreo'],
+        ]} />
       </FG>
-      <FG label="¿Los datos sensibles están cifrados en reposo y en tránsito?" iso="A.10.1.1">
-        <TriGroup groupKey="cripto" state={tri} onSelect={handleTri} options={[['no','No existe','Sin cifrado'],['sin','Parcial','Solo HTTPS'],['ok','Completo','Reposo + tránsito']]} />
+      <FG label="¿Existe una política de escritorio y pantalla limpia (sin información sensible visible)?" iso="A.7.7">
+        <TriGroup groupKey="escritorioLimpio" state={tri} onSelect={handleTri} options={[
+          ['no','No existe','Sin política definida'],
+          ['sin','Existe','No se cumple ni se audita'],
+          ['ok','Implementada','Auditada periódicamente'],
+        ]} />
+      </FG>
+      <FG label="¿Los visitantes son registrados y acompañados en áreas sensibles?" iso="A.7.2">
+        <Sel value={sel.visitantes || ''} onChange={e=>s('visitantes',e.target.value)} placeholder="Seleccionar..."
+          options={[
+            ['no','No, los visitantes acceden libremente'],
+            ['parcial','Solo en recepción, sin acompañamiento en áreas internas'],
+            ['si','Sí, registro + acompañamiento + identificación visible'],
+          ]} />
+      </FG>
+      <FG label="¿Se realizan revisiones periódicas de las instalaciones de seguridad física?" iso="A.7.9">
+        <Sel value={sel.revisionFisica || ''} onChange={e=>s('revisionFisica',e.target.value)} placeholder="Seleccionar..."
+          options={[
+            ['no','Nunca se ha revisado'],
+            ['incidente','Solo tras un incidente'],
+            ['anual','Anualmente con registro'],
+            ['semestral','Semestralmente con registro'],
+          ]} />
       </FG>
     </div>,
 
-    // 3 — Operaciones
+    // 3 — Incidentes A.5.24 / A.6.8
     <div key={3} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
-      <div><div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.6rem', flexWrap:'wrap' }}><Badge>A.12 Operaciones</Badge><Badge>A.17 Continuidad</Badge></div>
-      <h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Trazabilidad y respaldo</h2>
-      <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>La ausencia de logs y backups probados son los hallazgos más frecuentes en Pymes.</p></div>
-      <FG label="¿Tienen logs de acceso conservados por al menos 90 días?" iso="A.12.4.1">
-        <TriGroup groupKey="logs" state={tri} onSelect={handleTri} options={[['no','No existen','Sin registro'],['sin','Existen','Retención < 90d'],['ok','Configurados','≥90d, exportables']]} />
+      <div>
+        <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.6rem', flexWrap:'wrap' }}>
+          <span style={{ display:'inline-flex', background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.2)', borderRadius:20, padding:'3px 10px', fontSize:'0.75rem', color:'var(--success)', fontWeight:600 }}>A.5.24 Incidentes</span>
+          <span style={{ display:'inline-flex', background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.2)', borderRadius:20, padding:'3px 10px', fontSize:'0.75rem', color:'var(--success)', fontWeight:600 }}>A.6.8 Reporte</span>
+        </div>
+        <h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Gestión de incidentes</h2>
+        <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>
+          La norma exige que los empleados sepan cómo reportar y que existan procedimientos documentados.
+        </p>
+      </div>
+      <FG label="¿Existe un procedimiento documentado de respuesta a incidentes de seguridad?" iso="A.5.24">
+        <TriGroup groupKey="inc" state={tri} onSelect={handleTri} options={[
+          ['no','No existe','Actuamos ad-hoc'],
+          ['sin','Existe','Sin documentar'],
+          ['ok','Documentado','Con responsable y plazos'],
+        ]} />
       </FG>
-      <FG label="¿Aplican parches de seguridad con frecuencia definida?" iso="A.12.6.1">
-        <Sel value={sel.patches} onChange={e=>s('patches',e.target.value)} placeholder="Seleccionar..." options={[['nunca','Nunca / cuando recordamos'],['incidente','Solo al haber incidente'],['mensual-sr','Mensual, sin registro'],['mensual-cr','Mensual, con registro']]} />
+      <FG label="¿Los empleados saben a quién reportar un incidente o comportamiento sospechoso?" iso="A.6.8">
+        <TriGroup groupKey="canalReporte" state={tri} onSelect={handleTri} options={[
+          ['no','No existe','No hay canal definido'],
+          ['sin','Informal','Se avisa al jefe directo'],
+          ['ok','Formal','Canal definido y comunicado a todos'],
+        ]} />
       </FG>
-      <FG label="¿Tienen backups probados de datos críticos?" iso="A.17.1">
-        <TriGroup groupKey="backup" state={tri} onSelect={handleTri} options={[['no','Sin backups','Sin proceso'],['sin','Backups activos','Sin prueba'],['ok','Probados','Restauración doc.']]} />
+      <FG label="¿Se registran y analizan los incidentes de seguridad para aprender de ellos?" iso="A.5.27">
+        <TriGroup groupKey="registroInc" state={tri} onSelect={handleTri} options={[
+          ['no','No se registran','Sin historial'],
+          ['sin','Se registran','Sin análisis posterior'],
+          ['ok','Registrados y analizados','Con acciones correctivas'],
+        ]} />
       </FG>
-      <FG label="¿Cuánto tardarían en volver a operar si el sistema falla?" iso="A.17 RTO">
-        <Sel value={sel.rto} onChange={e=>s('rto',e.target.value)} placeholder="Seleccionar..." options={[['?','No lo sabemos'],['48+','Más de 48 horas'],['4-48','Entre 4 y 48 horas'],['<4','Menos de 4 horas (documentado)']]} />
+      <FG label="¿Cuánto tiempo promedio tardan en detectar un incidente de seguridad interno?" iso="A.5.25">
+        <Sel value={sel.tiempoDeteccion || ''} onChange={e=>s('tiempoDeteccion',e.target.value)} placeholder="Seleccionar..."
+          options={[
+            ['no','No tenemos forma de detectarlo'],
+            ['dias','Días o semanas después'],
+            ['horas','Horas después'],
+            ['inmediato','Casi inmediato (alertas automáticas)'],
+          ]} />
       </FG>
     </div>,
 
-    // 4 — Incidentes
-    <div key={4} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
-      <div><div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.6rem', flexWrap:'wrap' }}><Badge>A.16 Incidentes</Badge><Badge>A.7 RRHH</Badge><Badge>A.15 Proveedores</Badge></div>
-      <h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Respuesta y personas</h2>
-      <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>Los procedimientos deben estar documentados y las personas deben conocerlos.</p></div>
-      <FG label="Si detectan acceso no autorizado mañana, ¿tienen documentado qué hacer?" iso="A.16.1.1">
-        <TriGroup groupKey="inc" state={tri} onSelect={handleTri} options={[['no','No existe','Actuaríamos ad-hoc'],['sin','Existe','Sin documentar'],['ok','Documentado','Responsable asignado']]} />
-      </FG>
-      <FG label="¿Sus empleados han recibido capacitación en seguridad en el último año?" iso="A.7.2.2">
-        <Sel value={sel.training} onChange={e=>s('training',e.target.value)} placeholder="Seleccionar..." options={[['nunca','Nunca han recibido'],['1año+','Hace más de un año'],['1año-sr','En el último año, sin registro'],['1año-cr','En el último año, con registro']]} />
-      </FG>
-      <FG label="¿Sus proveedores con acceso a datos tienen cláusulas de seguridad?" iso="A.15.1">
-        <Sel value={sel.providerClauses} onChange={e=>s('providerClauses',e.target.value)} placeholder="Seleccionar..." options={[['na','No tenemos proveedores con acceso'],['sin-cc','Sí, pero sin cláusulas'],['nda','Sí, con NDA básico'],['cc','Sí, con cláusulas detalladas']]} />
-      </FG>
-    </div>,
-
+    // 4 — Perfil de riesgo (key ya correcto en IIFE)
     // 5 — Perfil de riesgo
     (() => {
       const riskList = Object.entries(riskData).map(([key,r]) => {
@@ -316,34 +594,265 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
       );
     })(),
 
-    // 6 — Revisión
+    // 6 — Activos (catálogo inteligente)
     <div key={6} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
-      <div><h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Revisión y compromisos</h2>
-      <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>Un auditor externo rechazará evidencias que nadie interno haya validado.</p></div>
-      <FG label="Responsable interno de seguridad" iso="segunda firma requerida">
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
-          {['Nombre completo','Cargo o rol'].map(ph => (
-            <input key={ph} placeholder={ph} style={{ background:'rgba(0,0,0,.25)', border:'1px solid var(--border)', borderRadius:8, padding:'0.7rem 1rem', color:'var(--text-primary)', fontSize:'0.9rem', outline:'none' }} />
+      <div>
+        <span style={{ display:'inline-flex', alignItems:'center', background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.2)', borderRadius:20, padding:'3px 10px', fontSize:'0.75rem', color:'var(--success)', fontWeight:600, marginBottom:'0.6rem' }}>A.8 Activos de información</span>
+        <h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Inventario de activos</h2>
+        <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>
+          Selecciona los activos que tiene tu organización. Los valores de riesgo C-I-A y las amenazas se calculan automáticamente.
+        </p>
+      </div>
+
+      {/* Selector de catálogo */}
+      <div className="glass-panel" style={{ padding:'1.25rem' }}>
+        <div style={{ fontSize:'0.82rem', fontWeight:600, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:'0.75rem' }}>
+          Seleccionar activo del catálogo
+        </div>
+
+        {/* Filtro por categoría */}
+        <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap', marginBottom:'1rem' }}>
+          <button onClick={() => setCatFilter('')}
+            style={{ padding:'0.3rem 0.8rem', borderRadius:20, fontSize:'0.78rem', fontWeight:600, cursor:'pointer', border:`1px solid ${!catFilter?'var(--accent)':'var(--border)'}`, background:!catFilter?'rgba(59,130,246,.1)':'transparent', color:!catFilter?'var(--accent)':'var(--text-secondary)' }}>
+            Todos
+          </button>
+          {CATALOG_CATEGORIES.map(cat => (
+            <button key={cat} onClick={() => setCatFilter(cat)}
+              style={{ padding:'0.3rem 0.8rem', borderRadius:20, fontSize:'0.78rem', fontWeight:600, cursor:'pointer', border:`1px solid ${catFilter===cat?'var(--accent)':'var(--border)'}`, background:catFilter===cat?'rgba(59,130,246,.1)':'transparent', color:catFilter===cat?'var(--accent)':'var(--text-secondary)' }}>
+              {cat}
+            </button>
           ))}
         </div>
-      </FG>
-      <FG label="Checklist de compromisos auditables">
+
+        {/* Grid de activos del catálogo */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:'0.6rem', maxHeight:280, overflowY:'auto', paddingRight:4 }}>
+          {Object.entries(ASSET_CATALOG)
+            .filter(([,a]) => !catFilter || a.category === catFilter)
+            .map(([name, a]) => {
+              const alreadyAdded = assets.some(x => x.name === name);
+              return (
+                <div key={name}
+                  onClick={() => {
+                    if (alreadyAdded) return;
+                    setAssets(prev => [...prev, {
+                      id: Date.now() + Math.random(),
+                      name,
+                      description: a.description,
+                      confidentiality_req: a.c,
+                      integrity_req: a.i,
+                      availability_req: a.a,
+                      threats: a.threats,
+                      fromCatalog: true,
+                    }]);
+                  }}
+                  style={{
+                    padding:'0.75rem', borderRadius:10, cursor: alreadyAdded ? 'default' : 'pointer',
+                    border:`1px solid ${alreadyAdded?'rgba(16,185,129,.4)':'var(--border)'}`,
+                    background: alreadyAdded?'rgba(16,185,129,.06)':'rgba(255,255,255,.03)',
+                    transition:'all .15s', opacity: alreadyAdded ? 0.7 : 1,
+                  }}
+                  onMouseEnter={e => { if (!alreadyAdded) e.currentTarget.style.borderColor='rgba(59,130,246,.4)'; }}
+                  onMouseLeave={e => { if (!alreadyAdded) e.currentTarget.style.borderColor='var(--border)'; }}
+                >
+                  <div style={{ fontSize:'1.4rem', marginBottom:'0.3rem' }}>{a.icon}</div>
+                  <div style={{ fontSize:'0.82rem', fontWeight:600, color: alreadyAdded?'var(--success)':'var(--text-primary)', lineHeight:1.3 }}>{name}</div>
+                  <div style={{ fontSize:'0.7rem', color:'var(--text-secondary)', marginTop:'0.2rem' }}>{a.category}</div>
+                  {alreadyAdded && <div style={{ fontSize:'0.68rem', color:'var(--success)', marginTop:'0.3rem', fontWeight:600 }}>✓ Agregado</div>}
+                </div>
+              );
+            })}
+        </div>
+      </div>
+
+      {/* Lista de activos seleccionados */}
+      {assets.length > 0 ? (
+        <div>
+          <div style={{ fontSize:'0.82rem', fontWeight:600, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:'0.75rem' }}>
+            {assets.length} activo{assets.length!==1?'s':''} en tu inventario
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
+            {assets.map((a, i) => {
+              const cia = a.confidentiality_req + a.integrity_req + a.availability_req;
+              const ciaColor = cia>=12?'var(--danger)':cia>=8?'var(--warning)':'var(--success)';
+              const ciaLabel = cia>=12?'Alta':cia>=8?'Media':'Baja';
+              const catalogData = ASSET_CATALOG[a.name];
+              return (
+                <div key={a.id} style={{ background:'rgba(255,255,255,.03)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+                  {/* Fila principal */}
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.75rem', padding:'0.85rem 1rem' }}>
+                    <span style={{ fontSize:'1.4rem', flexShrink:0 }}>{catalogData?.icon || '📎'}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:'0.88rem', fontWeight:700 }}>{a.name}</div>
+                      <div style={{ fontSize:'0.75rem', color:'var(--text-secondary)', marginTop:1 }}>{a.description}</div>
+                    </div>
+                    {/* Badges C-I-A */}
+                    <div style={{ display:'flex', gap:'0.3rem', flexShrink:0 }}>
+                      {[['C',a.confidentiality_req],['I',a.integrity_req],['A',a.availability_req]].map(([l,v])=>(
+                        <span key={l} style={{ fontSize:'0.7rem', fontWeight:700, background:'rgba(255,255,255,.06)', borderRadius:6, padding:'2px 5px', color:'var(--text-secondary)' }}>
+                          {l}:{v}
+                        </span>
+                      ))}
+                    </div>
+                    <span style={{ fontSize:'0.75rem', fontWeight:700, color:ciaColor, background:`${ciaColor}18`, border:`1px solid ${ciaColor}33`, borderRadius:10, padding:'2px 9px', flexShrink:0 }}>
+                      {ciaLabel} ({cia})
+                    </span>
+                    <button onClick={()=>setAssets(prev=>prev.filter((_,j)=>j!==i))}
+                      style={{ background:'none', border:'none', color:'var(--text-secondary)', cursor:'pointer', fontSize:'1rem', padding:'0.2rem', flexShrink:0 }}>✕</button>
+                  </div>
+                  {/* Amenazas automáticas */}
+                  {a.threats && a.threats.length > 0 && (
+                    <div style={{ borderTop:'1px solid var(--border)', padding:'0.6rem 1rem', background:'rgba(0,0,0,.15)' }}>
+                      <div style={{ fontSize:'0.72rem', fontWeight:600, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:'0.4rem' }}>
+                        Amenazas detectadas automáticamente
+                      </div>
+                      {a.threats.map((t, ti) => {
+                        const riskLevel = t.likelihood * t.impact;
+                        const riskC = riskLevel>=15?'var(--danger)':riskLevel>=8?'var(--warning)':'var(--success)';
+                        return (
+                          <div key={ti} style={{ display:'flex', alignItems:'center', gap:'0.6rem', marginBottom: ti<a.threats.length-1?'0.35rem':0 }}>
+                            <span style={{ fontSize:'0.78rem', color:'var(--text-secondary)', flex:1 }}>⚠️ {t.threat}</span>
+                            <span style={{ fontSize:'0.68rem', fontWeight:700, color:riskC, background:`${riskC}18`, borderRadius:8, padding:'1px 6px', flexShrink:0 }}>
+                              {riskLevel>=15?'Crítico':riskLevel>=8?'Alto':'Bajo'} ({riskLevel})
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div style={{ textAlign:'center', padding:'2rem', background:'rgba(255,255,255,.02)', border:'1px dashed var(--border)', borderRadius:12 }}>
+          <div style={{ fontSize:'2.5rem', marginBottom:'0.5rem' }}>🗃️</div>
+          <p style={{ color:'var(--text-secondary)', margin:'0 0 0.3rem', fontSize:'0.88rem', fontWeight:600 }}>Selecciona activos del catálogo</p>
+          <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.78rem' }}>
+            Puedes continuar sin agregarlos y registrarlos después en el módulo Activos.
+          </p>
+        </div>
+      )}
+    </div>,
+
+    // 7 — Revisión
+    <div key={7} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
+      <div>
+        <h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Revisión y compromisos</h2>
+        <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>
+          Estos compromisos quedan registrados en tu organización y son verificables por un auditor externo.
+        </p>
+      </div>
+
+      {/* Responsable interno */}
+      <div className="glass-panel" style={{ padding:'1.25rem' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'0.6rem', marginBottom:'0.9rem' }}>
+          <span style={{ fontSize:'0.88rem', fontWeight:600 }}>Responsable interno de seguridad</span>
+          <span style={{ fontSize:'0.7rem', fontWeight:600, color:'var(--success)', background:'rgba(16,185,129,.1)', border:'1px solid rgba(16,185,129,.2)', borderRadius:20, padding:'1px 8px' }}>
+            Cláusula 5.3
+          </span>
+        </div>
+        <p style={{ fontSize:'0.82rem', color:'var(--text-secondary)', margin:'0 0 1rem', lineHeight:1.5 }}>
+          La norma exige que alguien dentro de la organización sea formalmente responsable del SGSI.
+          Esta persona será el punto de contacto en auditorías y revisiones.
+        </p>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
+          <div>
+            <label style={{ fontSize:'0.8rem', color:'var(--text-secondary)', display:'block', marginBottom:'0.35rem', fontWeight:500 }}>
+              Nombre completo *
+            </label>
+            <input
+              value={officer.name}
+              onChange={e=>setOfficer(p=>({...p,name:e.target.value}))}
+              placeholder="Ej: Millaray Miranda"
+              style={{ background:'rgba(0,0,0,.25)', border:`1px solid ${!officer.name && error?'var(--danger)':'var(--border)'}`, borderRadius:8, padding:'0.7rem 1rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%' }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize:'0.8rem', color:'var(--text-secondary)', display:'block', marginBottom:'0.35rem', fontWeight:500 }}>
+              Cargo o rol *
+            </label>
+            <input
+              value={officer.role}
+              onChange={e=>setOfficer(p=>({...p,role:e.target.value}))}
+              placeholder="Ej: CISO, Gerente TI, Encargado de seguridad"
+              style={{ background:'rgba(0,0,0,.25)', border:`1px solid ${!officer.role && error?'var(--danger)':'var(--border)'}`, borderRadius:8, padding:'0.7rem 1rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%' }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Compromisos con contexto */}
+      <div>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.75rem' }}>
+          <span style={{ fontSize:'0.88rem', fontWeight:600 }}>Compromisos auditables</span>
+          <span style={{ fontSize:'0.78rem', color:'var(--text-secondary)' }}>
+            {Object.values(checks).filter(Boolean).length} de 5 aceptados
+          </span>
+        </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
-          {[['r1','Las evidencias serán revisadas por otra persona antes de cada auditoría','A.6'],['r2','Los controles se revisarán al menos cada 12 meses','Cláusula 9'],['r3','Los hallazgos tendrán un plazo de subsanación definido','Cláusula 10'],['r4','Los cambios en controles quedarán en historial con fecha y responsable','A.12.4'],['r5','El SoA (Declaración de Aplicabilidad) será mantenido actualizado','Anexo A']].map(([k,txt,iso]) => (
-            <div key={k} onClick={()=>setChecks(p=>({...p,[k]:!p[k]}))} style={{ display:'flex', alignItems:'center', gap:'0.75rem', background: checks[k]?'rgba(16,185,129,.06)':'rgba(255,255,255,.03)', border:`1px solid ${checks[k]?'rgba(16,185,129,.3)':'var(--border)'}`, borderRadius:8, padding:'0.75rem 1rem', cursor:'pointer', transition:'all .15s' }}>
-              <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, border:`2px solid ${checks[k]?'var(--success)':'var(--border)'}`, background: checks[k]?'var(--success)':'transparent', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .15s' }}>
-                {checks[k] && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          {[
+            {
+              k:'r1', iso:'A.6', freq:'Antes de cada auditoría',
+              txt:'Las evidencias serán revisadas por otra persona antes de presentarlas al auditor.',
+              ctx:'La norma prohíbe que quien sube la evidencia sea también quien la valida.'
+            },
+            {
+              k:'r2', iso:'Cláusula 9', freq:'Mínimo 1 vez al año',
+              txt:'Los controles del Anexo A serán revisados al menos cada 12 meses.',
+              ctx:'La revisión periódica es obligatoria para mantener la certificación ISO 27001.'
+            },
+            {
+              k:'r3', iso:'Cláusula 10', freq:'Al detectar el hallazgo',
+              txt:'Los hallazgos de auditoría tendrán un plazo de subsanación definido y registrado.',
+              ctx:'Sin plazos formales, los hallazgos quedan abiertos indefinidamente y se convierten en no conformidades.'
+            },
+            {
+              k:'r4', iso:'A.8.15', freq:'Cada vez que se cambie',
+              txt:'Los cambios en controles quedarán registrados con fecha, responsable y justificación.',
+              ctx:'El historial de cambios es evidencia de gestión activa del SGSI para el auditor.'
+            },
+            {
+              k:'r5', iso:'Anexo A', freq:'Continuo',
+              txt:'La Declaración de Aplicabilidad (SoA) se mantendrá actualizada ante cambios organizacionales.',
+              ctx:'El SoA es el documento central de la certificación. Un SoA desactualizado invalida la auditoría.'
+            },
+          ].map(({k,txt,iso,freq,ctx}) => (
+            <div key={k} onClick={()=>setChecks(p=>({...p,[k]:!p[k]}))}
+              style={{ borderRadius:10, cursor:'pointer', border:`1px solid ${checks[k]?'rgba(16,185,129,.3)':'var(--border)'}`, background: checks[k]?'rgba(16,185,129,.04)':'rgba(255,255,255,.03)', transition:'all .15s', overflow:'hidden' }}>
+              {/* Fila principal */}
+              <div style={{ display:'flex', alignItems:'center', gap:'0.75rem', padding:'0.85rem 1rem' }}>
+                <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, border:`2px solid ${checks[k]?'var(--success)':'var(--border)'}`, background: checks[k]?'var(--success)':'transparent', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .15s' }}>
+                  {checks[k] && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                <span style={{ fontSize:'0.88rem', fontWeight: checks[k]?600:400, color: checks[k]?'var(--text-primary)':'var(--text-secondary)', flex:1, lineHeight:1.4 }}>{txt}</span>
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'0.2rem', flexShrink:0 }}>
+                  <span style={{ fontSize:'0.68rem', fontWeight:700, color:'var(--success)', background:'rgba(16,185,129,.1)', border:'1px solid rgba(16,185,129,.2)', borderRadius:10, padding:'1px 7px' }}>{iso}</span>
+                  <span style={{ fontSize:'0.65rem', color:'var(--text-secondary)' }}>{freq}</span>
+                </div>
               </div>
-              <span style={{ fontSize:'0.85rem', color:'var(--text-secondary)', flex:1 }}>{txt}</span>
-              <span style={{ fontSize:'0.7rem', color:'var(--success)', background:'rgba(16,185,129,.1)', border:'1px solid rgba(16,185,129,.2)', borderRadius:10, padding:'1px 7px', flexShrink:0, fontWeight:600 }}>{iso}</span>
+              {/* Contexto desplegado cuando está marcado */}
+              {checks[k] && (
+                <div style={{ padding:'0.6rem 1rem 0.75rem 2.85rem', borderTop:'1px solid rgba(16,185,129,.15)', background:'rgba(16,185,129,.03)' }}>
+                  <span style={{ fontSize:'0.78rem', color:'var(--text-secondary)', lineHeight:1.5 }}>{ctx}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
-      </FG>
+      </div>
+
+      {/* Frecuencia */}
       <FG label="Frecuencia de revisión interna comprometida">
-        <Sel value="12m" onChange={()=>{}} options={[['6m','Cada 6 meses'],['12m','Cada 12 meses (mínimo ISO)'],['3m','Trimestral']]} />
+        <Sel value={sel.reviewFreq||'12m'} onChange={e=>s('reviewFreq',e.target.value)}
+          options={[['6m','Cada 6 meses'],['12m','Cada 12 meses (mínimo ISO 27001)'],['3m','Trimestral']]} />
       </FG>
-      {error && <div style={{ background:'rgba(239,68,68,.08)', border:'1px solid rgba(239,68,68,.3)', borderRadius:8, padding:'0.75rem 1rem', fontSize:'0.85rem', color:'var(--danger)' }}>{error}</div>}
+
+      {error && (
+        <div style={{ background:'rgba(239,68,68,.08)', border:'1px solid rgba(239,68,68,.3)', borderRadius:8, padding:'0.75rem 1rem', fontSize:'0.85rem', color:'var(--danger)' }}>
+          {error}
+        </div>
+      )}
     </div>,
   ];
 
@@ -353,20 +862,32 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
     <div style={{ minHeight:'100vh', background:'var(--bg-color)', display:'flex', flexDirection:'column' }}>
       <style>{`select option { background: #2d3748; color: #f8fafc; }`}</style>
 
-      {/* Header */}
-      <div style={{ borderBottom:'1px solid var(--border)', padding:'0.85rem 2rem', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, background:'rgba(15,23,42,.9)', backdropFilter:'blur(12px)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'0.6rem' }}>
-          <img src="/logo.png" alt="CompliSec" width={28} height={28} style={{ borderRadius:6, objectFit:'contain' }} onError={e=>{e.target.style.display='none';}} />
-          <span style={{ fontWeight:700, fontSize:'1rem' }}>Compli<span style={{ color:'var(--success)' }}>Sec</span></span>
-          <span style={{ fontSize:'0.8rem', color:'var(--text-secondary)', marginLeft:4 }}>— Diagnóstico ISO 27001</span>
+      {/* Header — mismo estilo que Layout.jsx */}
+      <header className="app-header" style={{ position:'sticky', top:0, zIndex:100 }}>
+        <div className="logo-container">
+          <img src="/logo.png" alt="CompliSec" width={36} height={36}
+            style={{ borderRadius:8, objectFit:'contain' }}
+            onError={e => { e.target.style.display='none'; }} />
+          <h1>CompliSec</h1>
+          <span className="badge">Diagnóstico ISO 27001</span>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:'1rem' }}>
-          {userName && <span style={{ fontSize:'0.85rem', color:'var(--text-secondary)' }}>Hola, {userName.split(' ')[0]} 👋</span>}
-          <button onClick={()=>onComplete([])} style={{ background:'none', border:'1px solid var(--border)', color:'var(--text-secondary)', fontSize:'0.8rem', padding:'0.35rem 0.9rem', borderRadius:6, cursor:'pointer' }}>
+        <nav className="header-nav" style={{ display:'flex', gap:'1rem', alignItems:'center' }}>
+          {userName && (
+            <div style={{ display:'flex', flexDirection:'column', lineHeight:1.3, textAlign:'right' }}>
+              <span style={{ fontSize:'0.875rem', fontWeight:600 }}>{userName}</span>
+              <span style={{ fontSize:'0.7rem', color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+                Paso {step + 1} de {STEPS.length}
+              </span>
+            </div>
+          )}
+          <button onClick={()=>onComplete([])}
+            style={{ background:'none', border:'1px solid rgba(239,68,68,0.4)', color:'var(--danger)', cursor:'pointer', fontSize:'0.8rem', padding:'0.3rem 0.75rem', borderRadius:'0.5rem', transition:'background 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.background='rgba(239,68,68,0.1)'}
+            onMouseLeave={e => e.currentTarget.style.background='none'}>
             Completar más tarde
           </button>
-        </div>
-      </div>
+        </nav>
+      </header>
 
       {/* Banner de progreso guardado */}
       {showResume && (
@@ -375,7 +896,7 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
             💾 Tienes un diagnóstico en progreso guardado — estás en el paso {step + 1} de {STEPS.length}.
           </span>
           <button
-            onClick={() => { clearSaved(); setStep(0); setTri({}); setChecks({}); setSels({ dataSensitivity:'', regulation:'No aplica', providers:'', systems:'', patches:'', rto:'', training:'', providerClauses:'' }); setRiskData({ acceso:{label:'Control de acceso (A.9)',prob:0,impact:0}, cripto:{label:'Criptografía (A.10)',prob:0,impact:0}, ops:{label:'Operaciones (A.12)',prob:0,impact:0}, inc:{label:'Incidentes (A.16)',prob:0,impact:0}, cont:{label:'Continuidad (A.17)',prob:0,impact:0} }); setShowResume(false); }}
+            onClick={() => { clearSaved(); setStep(0); setTri({}); setChecks({}); setSels({ dataSensitivity:'', regulation:'No aplica', providers:'', systems:'', patches:'', rto:'', training:'', providerClauses:'', reviewFreq:'12m' }); setRiskData({ personas:{label:'Seguridad en personas (A.6)',prob:0,impact:0}, fisico:{label:'Seguridad física (A.7)',prob:0,impact:0}, inc:{label:'Gestión de incidentes (A.16)',prob:0,impact:0} }); setAssets([]); setShowResume(false); }}
             style={{ background:'none', border:'1px solid rgba(59,130,246,.4)', color:'var(--accent)', fontSize:'0.78rem', padding:'0.3rem 0.85rem', borderRadius:6, cursor:'pointer', whiteSpace:'nowrap' }}
           >
             Empezar de nuevo

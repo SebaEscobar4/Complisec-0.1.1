@@ -10,6 +10,7 @@ import RiskAssessment from './components/risks/RiskAssessment';
 import SoAList from './components/soa/SoAList';
 import Dashboard from './components/dashboard/Dashboard';
 import EvidenceRepository from './components/soa/EvidenceRepository';
+import AuditList from './components/audits/AuditList';
 
 /**
  * Estados de la app:
@@ -189,6 +190,7 @@ function App() {
             ...(currentUser?.role !== 'EMPLOYEE' ? [{ key: 'risks', label: '⚠️ Riesgos' }] : []),
             { key: 'soa',       label: '📋 SoA'        },
             { key: 'evidences', label: '📁 Evidencias' },
+            { key: 'audits',    label: '🔍 Auditorías' },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -217,6 +219,9 @@ function App() {
         )}
         {currentView === 'soa' && (
           <SoAList organizationId={currentUser?.organization_id} />
+        )}
+        {currentView === 'audits' && (
+          <AuditList organizationId={currentUser?.organization_id} />
         )}
         {currentView === 'evidences' && (
           <EvidenceRepository organizationId={currentUser?.organization_id} />
