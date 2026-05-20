@@ -15,21 +15,22 @@ export const getAuditById = async (id) => {
 
 export const createAudit = async (data) => {
   const { organization_id, title, auditor_name, responsible_name,
-          start_date, end_date, status, observations } = data;
+          start_date, end_date, status, audit_type, observations } = data;
   const result = await query(
     `INSERT INTO audits
        (organization_id, title, auditor_name, responsible_name,
-        start_date, end_date, status, observations)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        start_date, end_date, status, audit_type, observations)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
     [organization_id, title, auditor_name, responsible_name,
-     start_date || null, end_date || null, status || 'NOT_STARTED', observations || null]
+     start_date || null, end_date || null,
+     status || 'NOT_STARTED', audit_type || 'INTERNAL', observations || null]
   );
   return result.rows[0];
 };
 
 export const updateAudit = async (id, data) => {
   const { title, auditor_name, responsible_name, start_date, end_date,
-          status, rating, action_plan_stage, observations } = data;
+          status, rating, action_plan_stage, audit_type, observations } = data;
   const result = await query(
     `UPDATE audits SET
        title             = COALESCE($1, title),
@@ -40,12 +41,14 @@ export const updateAudit = async (id, data) => {
        status            = COALESCE($6, status),
        rating            = $7,
        action_plan_stage = COALESCE($8, action_plan_stage),
-       observations      = $9,
+       audit_type        = COALESCE($9, audit_type),
+       observations      = $10,
        updated_at        = CURRENT_TIMESTAMP
-     WHERE id = $10 RETURNING *`,
+     WHERE id = $11 RETURNING *`,
     [title, auditor_name, responsible_name,
      start_date || null, end_date || null,
-     status, rating || null, action_plan_stage, observations || null, id]
+     status, rating || null, action_plan_stage,
+     audit_type, observations || null, id]
   );
   return result.rows[0];
 };

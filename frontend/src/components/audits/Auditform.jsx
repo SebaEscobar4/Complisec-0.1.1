@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from '../../utils/axiosSetup';
 import { STATUS_MAP } from './AuditList';
 
@@ -9,13 +9,20 @@ const AuditForm = ({ organizationId, onSuccess, onCancel }) => {
     auditor_name:     '',
     responsible_name: '',
     start_date:       '',
-    end_date:         '',
     status:           'NOT_STARTED',
+    audit_type:       'INTERNAL',
     observations:     '',
   });
   const [errors, setErrors]           = useState({});
   const [serverError, setServerError] = useState('');
   const [submitting, setSubmitting]   = useState(false);
+
+  // Cerrar con Escape
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const ch = (e) => {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }));
@@ -25,99 +32,177 @@ const AuditForm = ({ organizationId, onSuccess, onCancel }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = {};
-    if (!form.title.trim())            errs.title            = 'El nombre de la auditoría es obligatorio.';
-    if (!form.auditor_name.trim())     errs.auditor_name     = 'El nombre del auditor es obligatorio.';
-    if (!form.responsible_name.trim()) errs.responsible_name = 'El responsable del proceso es obligatorio.';
+    if (!form.title.trim())            errs.title            = 'Requerido.';
+    if (!form.auditor_name.trim())     errs.auditor_name     = 'Requerido.';
+    if (!form.responsible_name.trim()) errs.responsible_name = 'Requerido.';
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setSubmitting(true); setServerError('');
     try {
-      const payload = { ...form, start_date: form.start_date || null };
-      const res = await axios.post('/api/audits', payload);
+      const res = await axios.post('/api/audits', { ...form, start_date: form.start_date || null });
       onSuccess(res.data.data);
     } catch (err) {
-      setServerError(err.response?.data?.message || 'Error al crear la auditoría. Verifica que el servidor esté corriendo.');
+      setServerError(err.response?.data?.message || 'Error al crear la auditoría.');
     } finally { setSubmitting(false); }
   };
 
-  const inputStyle = (name) => ({
-    background: 'rgba(0,0,0,.25)',
-    border: `1px solid ${errors[name] ? 'var(--danger)' : 'var(--border)'}`,
+  // ── Estilos reutilizables ─────────────────────────────────────────────────
+  const fieldStyle = (name) => ({
+    background: 'rgba(255,255,255,.05)',
+    border: `1px solid ${errors[name] ? 'var(--danger)' : 'rgba(255,255,255,.12)'}`,
     borderRadius: 8,
-    padding: '0.7rem 1rem',
+    padding: '0.75rem 1rem',
     color: 'var(--text-primary)',
-    fontSize: '0.88rem',
+    fontSize: '0.9rem',
     outline: 'none',
     width: '100%',
+    boxSizing: 'border-box',
+    transition: 'border-color .15s',
   });
 
+  const Label = ({ text, required }) => (
+    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
+      {text}
+      {required && <span style={{ color: 'var(--danger)', marginLeft: 2 }}>*</span>}
+    </label>
+  );
+
   return (
-    <div className="glass-panel" style={{ marginBottom: '1.5rem', borderLeft: '3px solid var(--accent)' }}>
-      <form onSubmit={handleSubmit}>
-        <h3 style={{ margin: '0 0 1.25rem', fontSize: '1rem', fontWeight: 700 }}>Nueva auditoría</h3>
+    // Overlay
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'rgba(0,0,0,.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 500, padding: '1rem',
+      }}
+    >
+      {/* Modal */}
+      <div style={{
+        background: 'var(--panel-bg)',
+        border: '1px solid var(--border)',
+        borderRadius: 16,
+        width: '100%',
+        maxWidth: 680,
+        boxShadow: '0 24px 64px rgba(0,0,0,.5)',
+        overflow: 'hidden',
+      }}>
 
-        {serverError && <div className="alert-error" style={{ marginBottom: '1rem' }}>{serverError}</div>}
-
-        {/* Nombre */}
-        <div className="form-group" style={{ marginBottom: '1rem' }}>
-          <label style={{ fontSize: '0.85rem', fontWeight: 500 }}>Nombre de la auditoría *</label>
-          <input name="title" value={form.title} onChange={ch} style={inputStyle('title')}
-            placeholder="Ej: Auditoría interna ISO 27001 — 2026" />
-          {errors.title && <span className="error-text">{errors.title}</span>}
-        </div>
-
-        {/* Auditor + Responsable */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-          <div className="form-group">
-            <label style={{ fontSize: '0.85rem', fontWeight: 500 }}>Nombre del auditor *</label>
-            <input name="auditor_name" value={form.auditor_name} onChange={ch} style={inputStyle('auditor_name')}
-              placeholder="Ej: Oscar Pérez" />
-            {errors.auditor_name && <span className="error-text">{errors.auditor_name}</span>}
-          </div>
-          <div className="form-group">
-            <label style={{ fontSize: '0.85rem', fontWeight: 500 }}>Responsable del proceso *</label>
-            <input name="responsible_name" value={form.responsible_name} onChange={ch} style={inputStyle('responsible_name')}
-              placeholder="Ej: Millaray Miranda" />
-            {errors.responsible_name && <span className="error-text">{errors.responsible_name}</span>}
-          </div>
-        </div>
-
-        {/* Fechas + Estado */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-          <div className="form-group">
-            <label style={{ fontSize: '0.85rem', fontWeight: 500 }}>Fecha de inicio</label>
-            <input type="date" name="start_date" value={form.start_date} onChange={ch} style={inputStyle('start_date')} />
-          </div>
-          <div className="form-group">
-            <label style={{ fontSize: '0.85rem', fontWeight: 500 }}>Fecha de cierre estimada</label>
-            <input type="date" name="end_date" value={form.end_date} onChange={ch} style={inputStyle('end_date')} />
-          </div>
-          <div className="form-group">
-            <label style={{ fontSize: '0.85rem', fontWeight: 500 }}>Estado inicial</label>
-            <select name="status" value={form.status} onChange={ch} style={{ ...inputStyle('status'), cursor: 'pointer' }}>
-              {Object.entries(STATUS_MAP).map(([v, { label }]) => (
-                <option key={v} value={v}>{label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Observaciones */}
-        <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-          <label style={{ fontSize: '0.85rem', fontWeight: 500 }}>Observaciones iniciales</label>
-          <textarea name="observations" value={form.observations} onChange={ch} rows={3}
-            style={{ ...inputStyle('observations'), resize: 'vertical' }}
-            placeholder="Alcance, contexto o notas iniciales de la auditoría..." />
-        </div>
-
-        {/* Botones */}
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button type="button" className="btn-primary outline" onClick={onCancel}>Cancelar</button>
-          <button type="submit" className="btn-primary" disabled={submitting} style={{ flex: 1 }}>
-            {submitting ? 'Creando...' : 'Crear auditoría'}
+        {/* Header */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '1.25rem 1.5rem',
+          borderBottom: '1px solid var(--border)',
+        }}>
+          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>Nueva auditoría</h3>
+          <button onClick={onCancel}
+            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.3rem', lineHeight: 1, padding: '0 2px', display: 'flex', alignItems: 'center' }}>
+            ✕
           </button>
         </div>
-      </form>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+
+            {serverError && <div className="alert-error">{serverError}</div>}
+
+            {/* Fila 1 — Proceso a auditar */}
+            <div>
+              <Label text="Proceso a auditar" required />
+              <input
+                name="title" value={form.title} onChange={ch}
+                style={fieldStyle('title')}
+                placeholder="Ej: Control de acceso — Auditoría interna ISO 27001"
+                onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                onBlur={e => e.target.style.borderColor = errors.title ? 'var(--danger)' : 'rgba(255,255,255,.12)'}
+              />
+              {errors.title && <span className="error-text">{errors.title}</span>}
+            </div>
+
+            {/* Fila 2 — Fecha | Responsable | Auditor */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+              <div>
+                <Label text="Fecha de inicio" />
+                <input type="date" name="start_date" value={form.start_date} onChange={ch}
+                  style={fieldStyle('start_date')}
+                  onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                  onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,.12)'}
+                />
+              </div>
+              <div>
+                <Label text="Responsable auditoría" required />
+                <input name="responsible_name" value={form.responsible_name} onChange={ch}
+                  style={fieldStyle('responsible_name')} placeholder="Ej: Millaray Miranda"
+                  onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                  onBlur={e => e.target.style.borderColor = errors.responsible_name ? 'var(--danger)' : 'rgba(255,255,255,.12)'}
+                />
+                {errors.responsible_name && <span className="error-text">{errors.responsible_name}</span>}
+              </div>
+              <div>
+                <Label text="Nombre auditor" required />
+                <input name="auditor_name" value={form.auditor_name} onChange={ch}
+                  style={fieldStyle('auditor_name')} placeholder="Ej: Oscar Pérez"
+                  onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                  onBlur={e => e.target.style.borderColor = errors.auditor_name ? 'var(--danger)' : 'rgba(255,255,255,.12)'}
+                />
+                {errors.auditor_name && <span className="error-text">{errors.auditor_name}</span>}
+              </div>
+            </div>
+
+            {/* Fila 3 — Estado | Tipo */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <Label text="Estado inicial" />
+                <select name="status" value={form.status} onChange={ch}
+                  style={{ ...fieldStyle('status'), cursor: 'pointer' }}>
+                  {Object.entries(STATUS_MAP).map(([v, { label }]) => (
+                    <option key={v} value={v}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label text="Tipo de auditoría" />
+                <select name="audit_type" value={form.audit_type} onChange={ch}
+                  style={{ ...fieldStyle('audit_type'), cursor: 'pointer' }}>
+                  <option value="INTERNAL">Interna</option>
+                  <option value="EXTERNAL">Externa</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Fila 4 — Observaciones */}
+            <div>
+              <Label text="Observaciones" />
+              <textarea name="observations" value={form.observations} onChange={ch} rows={3}
+                style={{ ...fieldStyle('observations'), resize: 'vertical', fontFamily: 'inherit' }}
+                placeholder="Alcance, contexto o notas iniciales..."
+                onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,.12)'}
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            display: 'flex', gap: '0.75rem',
+            padding: '1rem 1.5rem',
+            borderTop: '1px solid var(--border)',
+            background: 'rgba(0,0,0,.15)',
+          }}>
+            <button type="button" className="btn-primary outline" onClick={onCancel}
+              style={{ minWidth: 100 }}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={submitting}
+              style={{ flex: 1 }}>
+              {submitting ? 'Creando...' : 'Crear auditoría'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
