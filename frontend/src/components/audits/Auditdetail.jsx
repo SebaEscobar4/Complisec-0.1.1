@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import axios from '../../utils/axiosSetup';
-import { STATUS_MAP, RATING_MAP, ACTION_STAGES } from './Auditlist';
+import { STATUS_MAP, RATING_MAP, ACTION_STAGES } from './AuditList';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-CL', { day:'2-digit', month:'short', year:'numeric' }) : '—';
 const progressPct = (stage) => stage === 0 ? 0 : Math.round((stage / 10) * 100);
