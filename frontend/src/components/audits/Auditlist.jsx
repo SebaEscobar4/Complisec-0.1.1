@@ -4,29 +4,31 @@ import AuditDetail from './AuditDetail';
 import AuditForm from './AuditForm';
 
 export const STATUS_MAP = {
+  PLANNED:     { label: 'No iniciada', color: 'var(--text-secondary)', bg: 'rgba(255,255,255,.06)' },
   NOT_STARTED: { label: 'No iniciada', color: 'var(--text-secondary)', bg: 'rgba(255,255,255,.06)' },
   IN_PROGRESS: { label: 'En proceso',  color: 'var(--warning)',        bg: 'rgba(245,158,11,.1)'  },
   COMPLETED:   { label: 'Terminada',   color: 'var(--success)',        bg: 'rgba(16,185,129,.1)'  },
 };
 
 export const RATING_MAP = {
-  APPROVED:                  { label: 'Aprobada',                   color: 'var(--success)' },
-  APPROVED_WITH_OBSERVATIONS:{ label: 'Aprobada con observaciones', color: 'var(--warning)' },
-  NOT_APPROVED:              { label: 'No aprobada',                color: 'var(--danger)'  },
+  DEFICIENTE:   { label: 'Deficiente',   color: 'var(--danger)'  },
+  INSUFICIENTE: { label: 'Insuficiente', color: 'var(--warning)' },
+  ACEPTABLE:    { label: 'Aceptable',    color: 'var(--accent)'  },
+  BUENA:        { label: 'Buena',        color: 'var(--success)' },
 };
 
 export const ACTION_STAGES = [
   'Sin iniciar',
-  '1. Comunicación de inicio y alcance',
-  '2. Recolección de evidencias',
-  '3. Análisis y validación de evidencias',
-  '4. Auditor valida evidencias en repositorio',
-  '5. Sesión de ajustes y validación de evidencia adicional',
-  '6. Ajustes adicionales basados en observaciones',
-  '7. Recepción de borrador y revisión con responsables',
-  '8. Sesión de borrador de informe y acciones correctivas',
-  '9. Formalizar planes y responsables',
-  '10. Cierre e informe final',
+  'Comunicación de inicio y alcance',
+  'Recolección de evidencias',
+  'Análisis y validación de evidencias',
+  'Auditor valida evidencias en repositorio',
+  'Sesión de ajustes y validación de evidencia adicional',
+  'Ajustes adicionales basados en observaciones',
+  'Recepción de borrador y revisión con responsables',
+  'Sesión de borrador de informe y acciones correctivas',
+  'Formalizar planes y responsables',
+  'Cierre e informe final',
 ];
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-CL', { day:'2-digit', month:'short', year:'numeric' }) : '—';
@@ -165,7 +167,7 @@ const AuditList = ({ organizationId }) => {
                     <div>
                       <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'0.3rem' }}>
                         <span style={{ fontSize:'0.75rem', color:'var(--text-secondary)' }}>
-                          {audit.action_plan_stage > 0 ? ACTION_STAGES[audit.action_plan_stage] : 'Plan de acción no iniciado'}
+                          {audit.action_plan_stage > 0 ? ACTION_STAGES[audit.action_plan_stage] : 'Sin iniciar'}
                         </span>
                         <span style={{ fontSize:'0.75rem', fontWeight:600, color:pct===100?'var(--success)':'var(--accent)' }}>{pct}%</span>
                       </div>

@@ -1,11 +1,12 @@
 import express from 'express';
-import { handleCreateAsset, handleGetAssets } from '../controllers/assetController.js';
+import { handleCreateAsset, handleGetAssets, handleUpdateAsset } from '../controllers/assetController.js';
 import { validate } from '../middlewares/validate.js';
 import { assetSchema } from '../middlewares/schemas.js';
 
 const router = express.Router();
 
-router.post('/', validate(assetSchema), handleCreateAsset);
-router.get('/', handleGetAssets);
+router.get('/',    handleGetAssets);
+router.post('/',   validate(assetSchema), handleCreateAsset);
+router.put('/:id', handleUpdateAsset);
 
 export default router;

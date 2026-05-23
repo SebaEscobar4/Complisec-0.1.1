@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../utils/axiosSetup';
-import { STATUS_MAP } from './AuditList';
+import { STATUS_MAP } from './Auditlist';
 
 const AuditForm = ({ organizationId, onSuccess, onCancel }) => {
   const [form, setForm] = useState({
@@ -157,7 +157,7 @@ const AuditForm = ({ organizationId, onSuccess, onCancel }) => {
               <div>
                 <Label text="Estado inicial" />
                 <select name="status" value={form.status} onChange={ch}
-                  style={{ ...fieldStyle('status'), cursor: 'pointer' }}>
+                  style={{ ...fieldStyle('status'), cursor:'pointer', colorScheme:'dark', background:'var(--panel-bg)' }}>
                   {Object.entries(STATUS_MAP).map(([v, { label }]) => (
                     <option key={v} value={v}>{label}</option>
                   ))}
@@ -166,7 +166,7 @@ const AuditForm = ({ organizationId, onSuccess, onCancel }) => {
               <div>
                 <Label text="Tipo de auditoría" />
                 <select name="audit_type" value={form.audit_type} onChange={ch}
-                  style={{ ...fieldStyle('audit_type'), cursor: 'pointer' }}>
+                  style={{ ...fieldStyle('audit_type'), cursor:'pointer', colorScheme:'dark', background:'var(--panel-bg)' }}>
                   <option value="INTERNAL">Interna</option>
                   <option value="EXTERNAL">Externa</option>
                 </select>

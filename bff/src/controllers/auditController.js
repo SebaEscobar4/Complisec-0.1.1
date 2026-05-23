@@ -1,7 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { getAudits, getAuditById, createAudit, updateAudit, saveAuditReport } from '../services/AuditService.js';
+import { getAudits, getAuditById, createAudit, updateAudit, saveAuditReport } from '../services/auditService.js';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -38,7 +38,8 @@ export const handleGetAudit = async (req, res, next) => {
 // POST /api/audits
 export const handleCreateAudit = async (req, res, next) => {
   try {
-    const audit = await createAudit(req.body);
+    const data = { ...req.body, created_by: req.user?.userId || null };
+    const audit = await createAudit(data);
     return res.status(201).json({ data: audit });
   } catch (e) { next(e); }
 };

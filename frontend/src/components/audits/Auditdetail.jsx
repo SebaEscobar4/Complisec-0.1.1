@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import axios from '../../utils/axiosSetup';
-import { STATUS_MAP, RATING_MAP, ACTION_STAGES } from './AuditList';
+import { STATUS_MAP, RATING_MAP, ACTION_STAGES } from './Auditlist';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-CL', { day:'2-digit', month:'short', year:'numeric' }) : '—';
 const progressPct = (stage) => stage === 0 ? 0 : Math.round((stage / 10) * 100);
@@ -92,7 +92,7 @@ const AuditDetail = ({ audit: initialAudit, organizationId, onBack, onUpdated })
       <div className="glass-panel" style={{ marginBottom:'1.5rem' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.6rem' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'0.6rem', flexWrap:'wrap' }}>
-            <span style={{ fontWeight:600 }}>Plan de acción</span>
+            <span style={{ fontWeight:600 }}>Etapa</span>
             <span style={{ fontSize:'0.72rem', fontWeight:600, color:st.color, background:st.bg, borderRadius:10, padding:'2px 9px' }}>{st.label}</span>
             {rt && <span style={{ fontSize:'0.72rem', fontWeight:600, color:rt.color, background:`${rt.color}18`, borderRadius:10, padding:'2px 9px' }}>{rt.label}</span>}
           </div>
@@ -102,13 +102,13 @@ const AuditDetail = ({ audit: initialAudit, organizationId, onBack, onUpdated })
           <div style={{ height:8, width:`${pct}%`, background:pct===100?'var(--success)':'linear-gradient(90deg,var(--accent),var(--success))', borderRadius:4, transition:'width .4s' }} />
         </div>
         {/* Etapas visuales */}
-        <div style={{ display:'flex', gap:'0.3rem', flexWrap:'wrap' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(10,1fr)', gap:'0.3rem' }}>
           {ACTION_STAGES.slice(1).map((label, i) => {
             const stageNum = i + 1;
             const isDone   = (audit.action_plan_stage || 0) >= stageNum;
             const isCurrent = (audit.action_plan_stage || 0) === stageNum;
             return (
-              <div key={stageNum} style={{ flex:'1 1 auto', minWidth:80, padding:'0.4rem 0.5rem', borderRadius:6, textAlign:'center', fontSize:'0.65rem', fontWeight:600, background: isDone?'rgba(16,185,129,.12)':'rgba(255,255,255,.04)', border:`1px solid ${isCurrent?'var(--success)':isDone?'rgba(16,185,129,.3)':'var(--border)'}`, color: isDone?'var(--success)':'var(--text-secondary)', transition:'all .2s' }}>
+              <div key={stageNum} title={label} style={{ flex:'1 1 0', minWidth:0, padding:'0.4rem 0.2rem', borderRadius:6, textAlign:'center', fontSize:'0.7rem', fontWeight:700, background: isDone?'rgba(16,185,129,.12)':'rgba(255,255,255,.04)', border:`1px solid ${isCurrent?'var(--accent)':isDone?'rgba(16,185,129,.3)':'var(--border)'}`, color: isDone?'var(--success)':isCurrent?'var(--accent)':'var(--text-secondary)', transition:'all .2s', cursor:'default' }}>
                 {stageNum}
               </div>
             );
@@ -136,8 +136,8 @@ const AuditDetail = ({ audit: initialAudit, organizationId, onBack, onUpdated })
 
           <Field label="Estado" value={st.label} name="status">
             {editing && (
-              <select name="status" value={form.status||'NOT_STARTED'} onChange={ch}
-                style={{ background:'rgba(0,0,0,.25)', border:'1px solid var(--border)', borderRadius:8, padding:'0.65rem 0.9rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%' }}>
+              <select name="status" value={form.status||'PLANNED'} onChange={ch}
+                style={{ background:'var(--panel-bg)', border:'1px solid var(--border)', borderRadius:8, padding:'0.65rem 0.9rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%', colorScheme:'dark' }}>
                 {Object.entries(STATUS_MAP).map(([v,{label}]) => <option key={v} value={v}>{label}</option>)}
               </select>
             )}
@@ -146,18 +146,18 @@ const AuditDetail = ({ audit: initialAudit, organizationId, onBack, onUpdated })
           <Field label="Calificación" value={rt?.label || null} name="rating">
             {editing && (
               <select name="rating" value={form.rating||''} onChange={ch}
-                style={{ background:'rgba(0,0,0,.25)', border:'1px solid var(--border)', borderRadius:8, padding:'0.65rem 0.9rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%' }}>
+                style={{ background:'var(--panel-bg)', border:'1px solid var(--border)', borderRadius:8, padding:'0.65rem 0.9rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%', colorScheme:'dark' }}>
                 <option value="">Sin calificación</option>
                 {Object.entries(RATING_MAP).map(([v,{label}]) => <option key={v} value={v}>{label}</option>)}
               </select>
             )}
           </Field>
 
-          <Field label="Plan de acción — etapa actual" value={ACTION_STAGES[audit.action_plan_stage||0]} name="action_plan_stage">
+          <Field label="Etapa actual" value={ACTION_STAGES[audit.action_plan_stage||0]} name="action_plan_stage">
             {editing && (
               <select name="action_plan_stage" value={form.action_plan_stage||0} onChange={e=>setForm(p=>({...p,action_plan_stage:parseInt(e.target.value)}))}
-                style={{ background:'rgba(0,0,0,.25)', border:'1px solid var(--border)', borderRadius:8, padding:'0.65rem 0.9rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%' }}>
-                {ACTION_STAGES.map((label, i) => <option key={i} value={i}>{label}</option>)}
+                style={{ background:'var(--panel-bg)', border:'1px solid var(--border)', borderRadius:8, padding:'0.65rem 0.9rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%', colorScheme:'dark' }}>
+                {ACTION_STAGES.map((label, i) => <option key={i} value={i}>{i === 0 ? 'Sin iniciar' : `${i}. ${label}`}</option>)}
               </select>
             )}
           </Field>
