@@ -284,7 +284,23 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
     const risks = Object.entries(riskData).map(([key,r]) => {
       const score = calcScore(r.prob, r.impact);
       const { label } = riskMeta(score);
-      return { domain_key:key, domain_label:r.label, probability:r.prob, impact_value:r.impact, risk_score:score, risk_level_label:label };
+      
+      const domainLabelsFallback = {
+        acceso: 'Control de acceso (A.9)',
+        cripto: 'Criptografía (A.10)',
+        ops: 'Operaciones (A.12)',
+        inc: 'Incidentes (A.16)',
+        cont: 'Continuidad (A.17)'
+      };
+      
+      return { 
+        domain_key: key, 
+        domain_label: r.label || domainLabelsFallback[key] || key, 
+        probability: r.prob, 
+        impact_value: r.impact, 
+        risk_score: score, 
+        risk_level_label: label 
+      };
     });
     try {
       await axios.post('/api/diagnostic', {

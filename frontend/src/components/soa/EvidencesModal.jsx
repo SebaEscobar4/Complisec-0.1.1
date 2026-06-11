@@ -15,7 +15,7 @@ const EvidencesModal = ({ control, soaId, onClose }) => {
 
   const token = localStorage.getItem('token');
   const userRole = token ? (jwtDecode(token)?.role || '') : '';
-  const canReview = ['ADMIN', 'CISO'].includes(userRole);
+  const canReview = ['ADMIN', 'CISO', 'AUDITOR'].includes(userRole);
 
   useEffect(() => { fetchEvidences(); }, [soaId]);
 
@@ -48,9 +48,12 @@ const EvidencesModal = ({ control, soaId, onClose }) => {
   };
 
   const handleReview = async (evidenceId, status) => {
+    const comment = window.prompt('Opcional: Deja un comentario sobre tu revisión (aprobación o rechazo):');
+    if (comment === null) return; // Se canceló el prompt
+
     setReviewing(evidenceId); setError(''); setSuccess('');
     try {
-      await axios.patch(`/api/evidences/${evidenceId}/review`, { review_status: status });
+      await axios.patch(`/api/evidences/${evidenceId}/review`, { review_status: status, review_comment: comment });
       setSuccess(status === 'APPROVED' ? '✅ Evidencia aprobada.' : '❌ Evidencia rechazada.');
       fetchEvidences();
     } catch { setError('No se pudo guardar la revisión.'); }
@@ -128,6 +131,11 @@ const EvidencesModal = ({ control, soaId, onClose }) => {
                         <span> · Revisado por <strong>{ev.reviewer_name}</strong></span>
                       )}
                     </div>
+                    {ev.review_comment && (
+                      <div style={{ fontSize:'0.75rem', marginTop:'0.4rem', color:'var(--text-secondary)', fontStyle:'italic', background:'rgba(0,0,0,0.1)', padding:'0.4rem 0.6rem', borderRadius:'6px', borderLeft:`2px solid ${ev.review_status==='APPROVED'?'var(--success)':'var(--danger)'}` }}>
+                        "{ev.review_comment}"
+                      </div>
+                    )}
                   </div>
                   <ReviewBadge status={ev.review_status} />
                   <a href={ev.file_url} target="_blank" rel="noopener noreferrer"

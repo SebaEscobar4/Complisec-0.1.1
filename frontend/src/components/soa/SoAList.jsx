@@ -3,13 +3,13 @@ import axios from '../../utils/axiosSetup';
 import SoAForm from './SoAForm';
 import EvidencesModal from './EvidencesModal';
 
-const SoAList = ({ organizationId }) => {
+const SoAList = ({ organizationId, viewParams }) => {
   const [controls, setControls]           = useState([]);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState('');
   const [selectedControl, setSelectedControl] = useState(null);
   const [viewingEvidences, setViewingEvidences] = useState(null);
-  const [filterStatus, setFilterStatus]   = useState('ALL');
+  const [filterStatus, setFilterStatus]   = useState(viewParams?.filter || 'ALL');
   const [filterDomain, setFilterDomain]   = useState('ALL');
   const [search, setSearch]               = useState('');
 
@@ -27,6 +27,13 @@ const SoAList = ({ organizationId }) => {
   };
 
   useEffect(() => { fetchSoA(); }, [organizationId]);
+
+  // Si el usuario navega desde el Dashboard con un filtro nuevo, lo aplicamos
+  useEffect(() => {
+    if (viewParams && viewParams.filter) {
+      setFilterStatus(viewParams.filter);
+    }
+  }, [viewParams]);
 
   const handleSoAUpdated = (updatedSoA) => {
     setControls(prev => prev.map(c =>

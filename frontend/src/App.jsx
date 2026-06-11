@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import axios from './utils/axiosSetup';
 import Layout from './components/layout/Layout';
-import OnboardingForm from './components/onboarding/OnboardingForm';
+import RegisterForm from './components/auth/RegisterForm';
 import DiagnosticWizard from './components/onboarding/DiagnosticWizard';
 import Login from './components/auth/Login';
 import AssetList from './components/assets/AssetList';
@@ -11,6 +11,7 @@ import SoAList from './components/soa/SoAList';
 import Dashboard from './components/dashboard/Dashboard';
 import EvidenceRepository from './components/soa/EvidenceRepository';
 import AuditList from './components/audits/AuditList';
+import TaskBoard from './components/tasks/TaskBoard';
 
 /**
  * Estados de la app:
@@ -28,6 +29,12 @@ function App() {
   const [currentUser, setCurrentUser]     = useState(null);
   const [diagnosticRisks, setDiagnosticRisks] = useState([]);
   const [currentView, setCurrentView]     = useState('dashboard');
+  const [viewParams, setViewParams]       = useState({});
+
+  const handleNavigate = (view, params = {}) => {
+    setCurrentView(view);
+    setViewParams(params);
+  };
 
   // ── Restaurar sesión desde token guardado ────────────────────────────────
   useEffect(() => {
@@ -124,7 +131,7 @@ function App() {
       setDiagnosticRisks(risks);
     }
     setAppState('app');
-    setCurrentView('dashboard');
+    handleNavigate('dashboard');
   };
 
   const handleLogout = () => {
@@ -132,7 +139,7 @@ function App() {
     setCurrentUser(null);
     setDiagnosticRisks([]);
     setAppState('login');
-    setCurrentView('dashboard');
+    handleNavigate('dashboard');
   };
 
   // ── RENDER ────────────────────────────────────────────────────────────────
@@ -153,15 +160,10 @@ function App() {
   if (appState === 'register') {
     return (
       <Layout>
-        <OnboardingForm onComplete={handleRegisterSuccess} />
-        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-          <button
-            style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.9rem' }}
-            onClick={() => setAppState('login')}
-          >
-            ¿Ya tienes cuenta? Inicia sesión
-          </button>
-        </div>
+        <RegisterForm
+          onRegisterSuccess={handleRegisterSuccess}
+          onGoToLogin={() => setAppState('login')}
+        />
       </Layout>
     );
   }
@@ -188,14 +190,14 @@ function App() {
             { key: 'dashboard', label: '📊 Dashboard' },
             { key: 'assets',    label: '🗃️ Activos'   },
             ...(currentUser?.role !== 'EMPLOYEE' ? [{ key: 'risks', label: '⚠️ Riesgos' }] : []),
-            { key: 'soa',       label: '📋 SoA'        },
+            { key: 'tasks',     label: '✅ Tareas'     },
             { key: 'evidences', label: '📁 Evidencias' },
             { key: 'audits',    label: '🔍 Auditorías' },
           ].map(({ key, label }) => (
             <button
               key={key}
               className={`btn-primary ${currentView === key ? '' : 'outline'}`}
-              onClick={() => setCurrentView(key)}
+              onClick={() => handleNavigate(key)}
             >
               {label}
             </button>
@@ -206,7 +208,7 @@ function App() {
         {currentView === 'dashboard' && (
           <Dashboard
             organizationId={currentUser?.organization_id}
-            onNavigate={setCurrentView}
+            onNavigate={handleNavigate}
             diagnosticRisks={diagnosticRisks}
             onOpenDiagnostic={() => setAppState('diagnostic')}
           />
@@ -217,8 +219,8 @@ function App() {
         {currentView === 'risks' && currentUser?.role !== 'EMPLOYEE' && (
           <RiskAssessment organizationId={currentUser?.organization_id} />
         )}
-        {currentView === 'soa' && (
-          <SoAList organizationId={currentUser?.organization_id} />
+        {currentView === 'tasks' && (
+          <TaskBoard organizationId={currentUser?.organization_id} />
         )}
         {currentView === 'audits' && (
           <AuditList organizationId={currentUser?.organization_id} />

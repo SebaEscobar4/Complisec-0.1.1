@@ -25,13 +25,13 @@ export const getEvidencesBySoaId = async (soaId) => {
  * Actualiza el estado de revisión de una evidencia (PENDING → APPROVED | REJECTED).
  * Solo ADMIN o CISO pueden hacerlo.
  */
-export const reviewEvidence = async (evidenceId, reviewStatus, reviewedBy) => {
+export const reviewEvidence = async (evidenceId, reviewStatus, reviewedBy, reviewComment = null) => {
   const result = await query(
     `UPDATE evidences
-     SET review_status = $1, reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP
-     WHERE id = $3
+     SET review_status = $1, reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP, review_comment = $3
+     WHERE id = $4
      RETURNING *`,
-    [reviewStatus, reviewedBy, evidenceId]
+    [reviewStatus, reviewedBy, reviewComment, evidenceId]
   );
   return result.rows[0];
 };
@@ -47,6 +47,7 @@ export const getEvidencesByOrganization = async (organizationId) => {
        e.document_name,
        e.file_url,
        e.review_status,
+       e.review_comment,
        e.uploaded_at,
        e.reviewed_at,
        u.name  AS uploader_name,

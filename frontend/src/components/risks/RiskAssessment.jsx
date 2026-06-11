@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../utils/axiosSetup';
 import RiskForm from './RiskForm';
+import RiskPlanningModal from './RiskPlanningModal';
 
 const PAGE_SIZE = 8;
 
@@ -28,6 +29,7 @@ const RiskAssessment = ({ organizationId }) => {
   const [page, setPage]                   = useState(1);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deletingId, setDeletingId]       = useState(null);
+  const [planningModalRisk, setPlanningModalRisk] = useState(null);
 
   const fetchData = async () => {
     setLoading(true); setError('');
@@ -175,7 +177,7 @@ const RiskAssessment = ({ organizationId }) => {
               <h3 style={{ margin:'0 0 1rem' }}>Matriz de riesgos</h3>
               {loading ? (
                 <table className="assets-table">
-                  <thead><tr><th>Activo</th><th>Amenaza / Vulnerabilidad</th><th>P × I</th><th>Nivel</th><th>Tratamiento</th><th>Acciones</th></tr></thead>
+                  <thead><tr><th>Activo</th><th>Amenaza</th><th>Inherente</th><th>Residual</th><th>Tratamiento</th><th>Acciones</th></tr></thead>
                   <tbody>{[...Array(4)].map((_,i) => <SkeletonRow key={i} />)}</tbody>
                 </table>
               ) : risks.length === 0 ? (
@@ -185,7 +187,7 @@ const RiskAssessment = ({ organizationId }) => {
                   <table className="assets-table" data-testid="risks-table">
                     <thead>
                       <tr>
-                        <th>Activo</th><th>Amenaza / Vulnerabilidad</th><th>P × I</th><th>Nivel</th><th>Tratamiento</th>
+                        <th>Activo</th><th>Amenaza</th><th>Inherente</th><th>Residual</th><th>Tratamiento</th>
                         <th style={{ textAlign:'right' }}>Acciones</th>
                       </tr>
                     </thead>
@@ -194,12 +196,41 @@ const RiskAssessment = ({ organizationId }) => {
                         <tr key={risk.id} data-testid={`risk-row-${risk.id}`}>
                           <td><strong>{risk.asset_name}</strong></td>
                           <td>
-                            <div><strong>A:</strong> {risk.threat}</div>
+                            <div style={{ fontSize: '0.85rem' }}><strong>A:</strong> {risk.threat}</div>
                             <div className="text-secondary text-small"><strong>V:</strong> {risk.vulnerability}</div>
                           </td>
-                          <td className="text-secondary text-small">{risk.likelihood} × {risk.impact}</td>
-                          <td><span className={`status-badge ${riskClass(risk.risk_level)}`}>{risk.risk_level}</span></td>
-                          <td><span className="badge">{treatmentLabel(risk.treatment_decision)}</span></td>
+                          <td>
+                            <div className={`status-badge ${riskClass(risk.risk_level)}`} style={{ padding: '0.2rem 0.5rem', margin: 0, fontSize: '0.7rem' }}>
+                              {risk.risk_level} ({risk.likelihood}x{risk.impact})
+                            </div>
+                          </td>
+                          <td>
+                            {risk.treatment_decision === 'MITIGATE' && risk.residual_risk_level ? (
+                              <div className={`status-badge ${riskClass(risk.residual_risk_level)}`} style={{ padding: '0.2rem 0.5rem', margin: 0, fontSize: '0.7rem' }}>
+                                {risk.residual_risk_level} ({risk.residual_likelihood}x{risk.residual_impact})
+                              </div>
+                            ) : <span className="text-secondary">—</span>}
+                          </td>
+                          <td>
+                            <span className="badge" style={{ marginBottom: '0.25rem', display: 'inline-block' }}>{treatmentLabel(risk.treatment_decision)}</span>
+                            {risk.treatment_decision === 'MITIGATE' && (
+                              risk.has_plan ? (
+                                <button 
+                                  disabled
+                                  style={{ display: 'block', background: 'rgba(16,185,129,0.1)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '4px', fontSize: '0.7rem', padding: '0.2rem 0.5rem', cursor: 'not-allowed', fontWeight: 600, marginTop: '0.2rem', opacity: 0.8 }}
+                                >
+                                  ✅ Planificado
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => setPlanningModalRisk(risk)}
+                                  style={{ display: 'block', background: 'rgba(59,130,246,0.1)', color: 'var(--accent)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '4px', fontSize: '0.7rem', padding: '0.2rem 0.5rem', cursor: 'pointer', fontWeight: 600, marginTop: '0.2rem' }}
+                                >
+                                  📅 Planificar
+                                </button>
+                              )
+                            )}
+                          </td>
                           <td>
                             <div style={{ display:'flex', gap:'.4rem', justifyContent:'flex-end' }}>
                               <button className="act-btn edit" onClick={() => { setEditingRisk(risk); setSelectedAsset(null); }}>✏️ Editar</button>
@@ -231,6 +262,14 @@ const RiskAssessment = ({ organizationId }) => {
           )}
         </div>
       </div>
+      
+      {planningModalRisk && (
+        <RiskPlanningModal 
+          risk={planningModalRisk} 
+          organizationId={organizationId} 
+          onClose={() => setPlanningModalRisk(null)} 
+        />
+      )}
     </div>
   );
 };

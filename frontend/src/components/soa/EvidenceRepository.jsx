@@ -18,7 +18,7 @@ const EvidenceRepository = ({ organizationId }) => {
 
   const token = localStorage.getItem('token');
   const userRole = token ? (jwtDecode(token)?.role || '') : '';
-  const canReview = ['ADMIN', 'CISO'].includes(userRole);
+  const canReview = ['ADMIN', 'CISO', 'AUDITOR'].includes(userRole);
 
   useEffect(() => { fetchRepository(); }, [organizationId]);
 
@@ -32,11 +32,14 @@ const EvidenceRepository = ({ organizationId }) => {
   };
 
   const handleReview = async (evidenceId, status) => {
+    const comment = window.prompt('Opcional: Deja un comentario sobre tu revisión (aprobación o rechazo):');
+    if (comment === null) return; // Se canceló el prompt
+
     setReviewing(evidenceId);
     try {
-      await axios.patch(`/api/evidences/${evidenceId}/review`, { review_status: status });
+      await axios.patch(`/api/evidences/${evidenceId}/review`, { review_status: status, review_comment: comment });
       setEvidences(prev => prev.map(e =>
-        e.id === evidenceId ? { ...e, review_status: status } : e
+        e.id === evidenceId ? { ...e, review_status: status, review_comment: comment, reviewer_name: userRole, reviewed_at: new Date().toISOString() } : e
       ));
     } catch { setError('No se pudo guardar la revisión.'); }
     finally { setReviewing(null); }
@@ -188,6 +191,11 @@ const EvidenceRepository = ({ organizationId }) => {
                       <span> · Revisado por <strong>{ev.reviewer_name}</strong> · {fmtDate(ev.reviewed_at)}</span>
                     )}
                   </div>
+                  {ev.review_comment && (
+                    <div style={{ fontSize:'0.75rem', marginTop:'0.5rem', color:'var(--text-secondary)', fontStyle:'italic', background:'rgba(0,0,0,0.1)', padding:'0.4rem 0.6rem', borderRadius:'6px', borderLeft:`2px solid ${ev.review_status==='APPROVED'?'var(--success)':'var(--danger)'}` }}>
+                      "{ev.review_comment}"
+                    </div>
+                  )}
                 </div>
 
                 {/* Acciones */}

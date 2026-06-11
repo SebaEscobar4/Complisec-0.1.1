@@ -19,7 +19,7 @@ router.get('/:soa_id', requireAuth, handleGetEvidences);
 // POST /api/evidences  — subir evidencia
 router.post('/', requireAuth, upload.single('file'), handleUploadEvidence);
 
-// PATCH /api/evidences/:id/review  — aprobar o rechazar (solo ADMIN o CISO)
-router.patch('/:id/review', requireAuth, requireRole(['ADMIN', 'CISO']), handleReviewEvidence);
+// PATCH /api/evidences/:id/review  — aprobar o rechazar (ADMIN, CISO, AUDITOR)
+router.patch('/:id/review', requireAuth, requireRole(['ADMIN', 'CISO', 'AUDITOR']), handleReviewEvidence);
 
 export default router;

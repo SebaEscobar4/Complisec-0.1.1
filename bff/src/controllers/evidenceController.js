@@ -45,14 +45,14 @@ export const handleGetEvidences = async (req, res, next) => {
 // PATCH /api/evidences/:id/review — aprobar o rechazar
 export const handleReviewEvidence = async (req, res, next) => {
   try {
-    const { review_status } = req.body;
+    const { review_status, review_comment } = req.body;
     const validStatuses = ['APPROVED', 'REJECTED', 'PENDING'];
 
     if (!validStatuses.includes(review_status)) {
       return res.status(400).json({ message: 'Estado inválido. Usa APPROVED, REJECTED o PENDING.' });
     }
 
-    const updated = await reviewEvidence(req.params.id, review_status, req.user?.userId);
+    const updated = await reviewEvidence(req.params.id, review_status, req.user?.userId, review_comment);
     if (!updated) return res.status(404).json({ message: 'Evidencia no encontrada.' });
 
     return res.status(200).json({ message: 'Revisión guardada.', data: updated });

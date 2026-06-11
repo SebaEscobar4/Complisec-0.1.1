@@ -33,7 +33,9 @@ export const riskSchema = z.object({
   impact: z.number().int().min(1).max(5),
   treatment_decision: z.enum(["ACCEPT", "MITIGATE", "TRANSFER", "AVOID"], {
     errorMap: () => ({ message: "La decisión de tratamiento debe ser ACCEPT, MITIGATE, TRANSFER o AVOID" })
-  })
+  }),
+  residual_likelihood: z.number().int().min(1).max(5).optional(),
+  residual_impact: z.number().int().min(1).max(5).optional()
 });
 
 export const soaSchema = z.object({
@@ -46,7 +48,8 @@ export const soaSchema = z.object({
   justification: z.string().min(10, "La justificación debe tener al menos 10 caracteres (obligatorio según la norma)"),
   implementation_status: z.enum(["NOT_IMPLEMENTED", "PARTIAL", "FULLY_IMPLEMENTED"], {
     errorMap: () => ({ message: "El estado de implementación debe ser NOT_IMPLEMENTED, PARTIAL o FULLY_IMPLEMENTED" })
-  })
+  }),
+  risk_profile_id: z.string().uuid("Formato de ID de perfil de riesgo inválido").optional().nullable()
 });
 
 export const loginSchema = z.object({

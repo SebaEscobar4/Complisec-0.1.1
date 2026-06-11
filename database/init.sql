@@ -6,7 +6,13 @@ CREATE TABLE organizations (
     name VARCHAR(255) NOT NULL,
     industry VARCHAR(100),
     size VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    security_officer_name VARCHAR(255),
+    security_officer_role VARCHAR(255),
+    review_frequency VARCHAR(50) DEFAULT '12m',
+    commitments JSONB,
+    compliance_goals JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Tabla de Usuarios
@@ -44,6 +50,18 @@ CREATE TABLE risk_profiles (
     impact INT CHECK (impact BETWEEN 1 AND 5),
     risk_level INT GENERATED ALWAYS AS (likelihood * impact) STORED,
     treatment_decision VARCHAR(50), -- ACCEPT, MITIGATE, TRANSFER, AVOID
+    residual_likelihood INT CHECK (residual_likelihood BETWEEN 1 AND 5),
+    residual_impact INT CHECK (residual_impact BETWEEN 1 AND 5),
+    residual_risk_level INT GENERATED ALWAYS AS (residual_likelihood * residual_impact) STORED,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tareas de Mitigación de Riesgos
+CREATE TABLE risk_tasks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    risk_profile_id UUID REFERENCES risk_profiles(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    status VARCHAR(50) DEFAULT 'PENDING',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -78,7 +96,10 @@ CREATE TABLE evidences (
     file_url VARCHAR(1024) NOT NULL, -- URL del S3
     uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    review_status VARCHAR(50) DEFAULT 'PENDING' -- PENDING, APPROVED, REJECTED
+    review_status VARCHAR(50) DEFAULT 'PENDING', -- PENDING, APPROVED, REJECTED
+    reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    review_comment TEXT
 );
 
 

@@ -12,6 +12,8 @@ const RiskForm = ({ organizationId, assetId, initialData, onSuccess, onCancel })
     likelihood:         initialData?.likelihood         ?? 3,
     impact:             initialData?.impact             ?? 3,
     treatment_decision: initialData?.treatment_decision || 'MITIGATE',
+    residual_likelihood: initialData?.residual_likelihood ?? 2,
+    residual_impact:     initialData?.residual_impact     ?? 2,
   });
 
   const [formErrors, setFormErrors]     = useState({});
@@ -58,6 +60,10 @@ const RiskForm = ({ organizationId, assetId, initialData, onSuccess, onCancel })
   const riskScore = formData.likelihood * formData.impact;
   const riskColor = riskScore >= 15 ? 'var(--danger)' : riskScore >= 8 ? 'var(--warning)' : 'var(--success)';
   const riskLabel = riskScore >= 15 ? 'CRÍTICO' : riskScore >= 8 ? 'ALTO' : 'BAJO';
+
+  const residualScore = formData.residual_likelihood * formData.residual_impact;
+  const residualColor = residualScore >= 15 ? 'var(--danger)' : residualScore >= 8 ? 'var(--warning)' : 'var(--success)';
+  const residualLabel = residualScore >= 15 ? 'CRÍTICO' : residualScore >= 8 ? 'ALTO' : 'BAJO';
 
   return (
     <div className="glass-panel" style={{ marginTop:'1rem', borderLeft:`4px solid ${isEditing ? 'var(--warning)' : 'var(--accent)'}` }}>
@@ -130,6 +136,35 @@ const RiskForm = ({ organizationId, assetId, initialData, onSuccess, onCancel })
               <option value="AVOID">Evitar — Cesar la actividad</option>
             </select>
           </div>
+
+          {formData.treatment_decision === 'MITIGATE' && (
+            <div style={{ background:'rgba(59,130,246,0.08)', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'.75rem', padding:'1rem', marginTop:'1rem' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'1rem', alignItems:'center' }}>
+                <span style={{ fontWeight:600, fontSize:'.9rem', color: 'var(--accent)' }}>🎯 Evaluación Residual (Después de mitigar)</span>
+                <span style={{ fontWeight:700, color:residualColor, fontSize:'1.1rem' }}>Nivel: {residualScore} — {residualLabel}</span>
+              </div>
+              <p className="text-secondary" style={{ fontSize: '0.8rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+                Estima cuál será el riesgo una vez que apliques los controles.
+              </p>
+              <div style={{ display:'flex', gap:'2rem' }}>
+                {[
+                  { name:'residual_likelihood', label:'Prob. Residual' },
+                  { name:'residual_impact',     label:'Imp. Residual' },
+                ].map(({ name, label }) => (
+                  <div className="form-group" key={name} style={{ flex:1 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between' }}>
+                      <label>{label}</label>
+                      <span style={{ fontWeight:700, color:'var(--accent)' }}>{formData[name]}/5</span>
+                    </div>
+                    <input
+                      type="range" min="1" max="5" name={name}
+                      value={formData[name]} onChange={handleChange} style={{ width:'100%' }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ display:'flex', gap:'1rem', marginTop:'1.5rem' }}>
             <button type="button" className="btn-primary outline" onClick={onCancel}>Cancelar</button>
