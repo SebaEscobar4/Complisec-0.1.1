@@ -3,47 +3,10 @@ import axios from '../../utils/axiosSetup';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import GoalsModal from './GoalsModal';
 
-// ─── Mapeo: dominio de riesgo del diagnóstico → controles ISO a implementar ──
-// Cada entrada tiene: control número, nombre, descripción de la tarea, prioridad base
-const DOMAIN_TASKS = {
-  acceso: [
-    { control: 'A.9.2',   task: 'Documentar proceso de altas y bajas de accesos',          iso: 'A.9.2'   },
-    { control: 'A.9.4.2', task: 'Implementar autenticación de doble factor (MFA)',          iso: 'A.9.4.2' },
-    { control: 'A.9.1',   task: 'Definir política de control de acceso',                    iso: 'A.9.1'   },
-  ],
-  cripto: [
-    { control: 'A.10.1',  task: 'Cifrar datos sensibles en reposo (bases de datos, discos)', iso: 'A.10.1' },
-    { control: 'A.10.1',  task: 'Verificar cifrado en tránsito en todos los servicios',      iso: 'A.10.1' },
-    { control: 'A.8.24',  task: 'Documentar política de uso de criptografía',                iso: 'A.8.24' },
-  ],
-  ops: [
-    { control: 'A.8.15',  task: 'Configurar logs de acceso con retención ≥90 días',         iso: 'A.8.15' },
-    { control: 'A.8.8',   task: 'Establecer proceso de gestión de parches de seguridad',    iso: 'A.8.8'  },
-    { control: 'A.8.13',  task: 'Implementar y probar backups de datos críticos',            iso: 'A.8.13' },
-  ],
-  inc: [
-    { control: 'A.5.24',  task: 'Documentar plan de respuesta a incidentes de seguridad',   iso: 'A.5.24' },
-    { control: 'A.5.26',  task: 'Definir responsable y canal de reporte de incidentes',     iso: 'A.5.26' },
-    { control: 'A.6.3',   task: 'Ejecutar capacitación en seguridad para empleados',        iso: 'A.6.3'  },
-  ],
-  cont: [
-    { control: 'A.5.29',  task: 'Definir RTO y RPO para sistemas críticos',                 iso: 'A.5.29' },
-    { control: 'A.5.30',  task: 'Documentar plan de continuidad de negocio',                iso: 'A.5.30' },
-    { control: 'A.8.13',  task: 'Probar restauración de backups y documentar resultado',    iso: 'A.8.13' },
-  ],
-};
-
 // Controles del SoA que no están implementados → tareas pendientes
 const SOA_STATUS_TASKS = {
   NOT_IMPLEMENTED: { label: 'Pendiente',    color: 'var(--danger)',  icon: '❌' },
   PARTIAL:         { label: 'En progreso',  color: 'var(--warning)', icon: '🟡' },
-};
-
-const diagColor = (score) => {
-  if (score >= 70) return 'var(--danger)';
-  if (score >= 45) return 'var(--warning)';
-  if (score >= 20) return 'var(--accent)';
-  return 'var(--success)';
 };
 
 const riskLevelClass = (level) => {
@@ -108,7 +71,6 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
 
   const hasManualRisks = risks.length > 0;
   const hasDiagnostic  = diagRisks.length > 0;
-  const showDiagnostic = !hasManualRisks && hasDiagnostic;
 
   // ── Generar lista de tareas ───────────────────────────────────────────────
   // Fuente 1: controles del SoA que están NOT_IMPLEMENTED o PARTIAL
@@ -123,26 +85,9 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
       priority: c.implementation_status === 'NOT_IMPLEMENTED' ? 1 : 2,
     }));
 
-  // Fuente 2: tareas generadas desde el diagnóstico (dominios con riesgo alto/crítico)
-  const diagTasks = hasDiagnostic
-    ? diagRisks
-        .filter(r => r.risk_score >= 45) // Solo alto y crítico generan tareas
-        .sort((a, b) => b.risk_score - a.risk_score)
-        .flatMap(r => (DOMAIN_TASKS[r.domain_key] || []).map(t => ({
-          id:       `diag-${r.domain_key}-${t.control}`,
-          task:     t.task,
-          iso:      t.iso,
-          status:   'NOT_IMPLEMENTED',
-          source:   'diagnostic',
-          riskScore: r.risk_score,
-          riskLabel: r.risk_level_label,
-          priority: r.risk_score >= 70 ? 1 : 2,
-        })))
-    : [];
-
-  // Combinar, deduplicar por ISO y limitar
+  // Deduplicar por ISO y limitar
   const allTaskIds = new Set();
-  const tasks = [...soaTasks, ...diagTasks]
+  const tasks = soaTasks
     .filter(t => {
       if (allTaskIds.has(t.iso)) return false;
       allTaskIds.add(t.iso);
@@ -154,8 +99,11 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
   // ── Road Map Logic ──────────────────────────────────────────────────────────
   // Fase 1: Activos (100% si hay al menos 1)
   const phase1Pct = assets.length > 0 ? 100 : 0;
-  // Fase 2: Riesgos (100% si hay al menos 1 manual, o 50% si solo hay diagnóstico)
-  const phase2Pct = hasManualRisks ? 100 : (hasDiagnostic ? 50 : 0);
+  // Fase 2: Riesgos (% de riesgos gestionados: tratados con plan, o aceptados/transferidos/evitados)
+  const managedRisksCount = risks.filter(r => r.treatment_decision !== 'MITIGATE' || r.has_plan).length;
+  const phase2Pct = hasManualRisks
+    ? Math.round((managedRisksCount / risks.length) * 100)
+    : (hasDiagnostic ? 50 : 0);
   // Fase 3: Controles
   const phase3Pct = compliancePct;
   // Fase 4: Auditorías
@@ -181,12 +129,11 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
   const goalsToUse = complianceGoals && complianceGoals.length > 0 ? complianceGoals : defaultGoalsData;
   const chartData = goalsToUse.map((goal, i) => {
     const isLast = i === goalsToUse.length - 1;
-    // Aproximación visual del avance real en el tiempo basado en el compliancePct actual
-    const progressSimulation = Math.round(goal.expected * (compliancePct / 100));
+    // Línea de referencia con el cumplimiento actual real
     return {
       month: goal.month,
       expected: goal.expected,
-      actual: isLast ? null : Math.min(compliancePct, progressSimulation)
+      actual: isLast ? null : compliancePct
     };
   });
 
@@ -245,7 +192,7 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', marginBottom: '2rem' }}>
         
         {/* Métricas Globales */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '1rem', height: '100%' }}>
           {[
             [compliancePct + '%', 'Cumplimiento',    'var(--accent)', 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.02))', 'ALL' ],
             [implementedControls, 'Controles OK', 'var(--success)', 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.02))', 'FULLY_IMPLEMENTED'],
@@ -256,7 +203,7 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
               key={label} 
               className="glass-panel kpi-card-hover" 
               onClick={() => onNavigate('soa', { filter: filterType })}
-              style={{ padding: '1.25rem', textAlign: 'center', background: bg, border: `1px solid ${color}33`, cursor: 'pointer', transition: 'all 0.2s ease-in-out' }}
+              style={{ padding: '1.25rem', textAlign: 'center', background: bg, border: `1px solid ${color}33`, cursor: 'pointer', transition: 'all 0.2s ease-in-out', display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', boxSizing: 'border-box' }}
             >
               <div style={{ fontSize: '1.8rem', fontWeight: 800, color }}>{val}</div>
               <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{label}</div>
@@ -265,7 +212,7 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
         </div>
 
         {/* Próximos pasos y Tareas */}
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0, fontSize: '1.1rem' }}>📋 Tareas de Remediación</h3>
             <button className="btn-primary outline" style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem' }} onClick={() => onNavigate('soa')}>Ver todas</button>
@@ -277,13 +224,13 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
               {!hasDiagnostic && <button className="btn-primary" style={{ alignSelf: 'center' }} onClick={onOpenDiagnostic}>Realizar diagnóstico inicial</button>}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto', maxHeight: '200px', paddingRight: '0.5rem' }}>
+            <div className="thin-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto', flex: 1, minHeight: 0, maxHeight: '260px', paddingRight: '0.75rem', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
               {tasks.map((t, i) => (
                 <div key={t.id} className="task-card-hover" style={{ 
                   display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem',
                   background: 'rgba(255,255,255,0.03)', borderLeft: `3px solid ${t.priority === 1 ? 'var(--danger)' : 'var(--warning)'}`,
                   borderRadius: '0.5rem', cursor: 'pointer', border: '1px solid var(--border)'
-                }} onClick={() => onNavigate('soa')}>
+                }} onClick={() => onNavigate('tasks', { controlNumber: t.iso })}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {getFriendlyTask(t)}
@@ -307,7 +254,7 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
           <div>
             <h3 style={{ margin: '0', fontSize: '1.1rem' }}>📈 Evolución del Cumplimiento</h3>
             <p className="text-secondary" style={{ fontSize: '0.85rem', marginTop: '0.2rem' }}>
-              Comparación del avance actual vs la línea base esperada.
+              Comparación del avance actual ({compliancePct}%) vs la línea base esperada.
             </p>
           </div>
           <button 
@@ -319,7 +266,7 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
           </button>
         </div>
 
-        <div style={{ width: '100%', height: 280 }}>
+        <div style={{ width: '100%', height: 180 }}>
           <ResponsiveContainer>
             <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <defs>
@@ -353,19 +300,15 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
         {/* ── Riesgos ── */}
         <div className="glass-panel">
           <div className="section-header" style={{ marginBottom:'1rem' }}>
-            <h3 style={{ margin:0, fontSize:'1.1rem' }}>⚠️ {showDiagnostic ? 'Diagnóstico' : 'Riesgos'}</h3>
+            <h3 style={{ margin:0, fontSize:'1.1rem' }}>⚠️ Riesgos</h3>
             <button className="btn-primary outline" style={{ padding:'0.2rem 0.5rem', fontSize:'0.7rem' }} onClick={() => onNavigate('risks')}>Evaluar</button>
           </div>
 
           <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1rem' }}>
-            {(showDiagnostic
-              ? [['Críticos', diagRisks.filter(r=>r.risk_score>=70).length, 'var(--danger)'],
-                 ['Altos',  diagRisks.filter(r=>r.risk_score>=45&&r.risk_score<70).length, 'var(--warning)'],
-                 ['Bajos',    diagRisks.filter(r=>r.risk_score<45).length, 'var(--success)']]
-              : [['Críticos', risks.filter(r=>r.risk_level>=15).length, 'var(--danger)'],
-                 ['Altos',   risks.filter(r=>r.risk_level>=8&&r.risk_level<15).length, 'var(--warning)'],
-                 ['Bajos',     risks.filter(r=>r.risk_level<8).length, 'var(--success)']]
-            ).map(([l, n, c]) => (
+            {[['Críticos', risks.filter(r=>r.risk_level>=15).length, 'var(--danger)'],
+              ['Altos',   risks.filter(r=>r.risk_level>=8&&r.risk_level<15).length, 'var(--warning)'],
+              ['Bajos',     risks.filter(r=>r.risk_level<8).length, 'var(--success)']]
+            .map(([l, n, c]) => (
               <div key={l} style={{ flex:1, background:'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius:'0.5rem', padding:'0.5rem', textAlign:'center' }}>
                 <div style={{ fontSize:'1.4rem', fontWeight:700, color:c }}>{n}</div>
                 <div style={{ fontSize:'0.65rem', color:'var(--text-secondary)' }}>{l}</div>
@@ -382,15 +325,8 @@ const Dashboard = ({ organizationId, onNavigate, diagnosticRisks, onOpenDiagnost
                 </div>
               ))}
             </div>
-          ) : showDiagnostic && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'0.4rem' }}>
-              {diagRisks.slice(0, 3).map(r => (
-                <div key={r.domain_key} style={{ display:'flex', alignItems:'center', gap:'0.5rem', padding:'0.5rem', background:'rgba(0,0,0,0.15)', borderRadius:'0.5rem' }}>
-                  <div style={{ flex:1, fontSize:'0.75rem', fontWeight:600 }}>{r.domain_label}</div>
-                  <span style={{ fontSize:'0.7rem', fontWeight:600, color:diagColor(r.risk_score) }}>{r.risk_level_label}</span>
-                </div>
-              ))}
-            </div>
+          ) : (
+            <p className="text-secondary text-small" style={{ margin:0 }}>Aún no se han evaluado riesgos por activo.</p>
           )}
         </div>
 

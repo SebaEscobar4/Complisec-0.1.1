@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../utils/axiosSetup';
 import { jwtDecode } from 'jwt-decode';
+import ReviewCommentModal from './ReviewCommentModal';
 
 /**
  * Repositorio central de evidencias.
@@ -12,6 +13,7 @@ const EvidenceRepository = ({ organizationId }) => {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
   const [reviewing, setReviewing] = useState(null);
+  const [reviewPrompt, setReviewPrompt] = useState(null); // { evidenceId, status }
   const [filterStatus, setFilterStatus]   = useState('ALL');
   const [filterDomain, setFilterDomain]   = useState('ALL');
   const [search, setSearch]               = useState('');
@@ -31,10 +33,11 @@ const EvidenceRepository = ({ organizationId }) => {
     finally { setLoading(false); }
   };
 
-  const handleReview = async (evidenceId, status) => {
-    const comment = window.prompt('Opcional: Deja un comentario sobre tu revisión (aprobación o rechazo):');
-    if (comment === null) return; // Se canceló el prompt
+  const handleReview = (evidenceId, status) => setReviewPrompt({ evidenceId, status });
 
+  const confirmReview = async (comment) => {
+    const { evidenceId, status } = reviewPrompt;
+    setReviewPrompt(null);
     setReviewing(evidenceId);
     try {
       await axios.patch(`/api/evidences/${evidenceId}/review`, { review_status: status, review_comment: comment });
@@ -227,6 +230,14 @@ const EvidenceRepository = ({ organizationId }) => {
             </div>
           ))}
         </div>
+      )}
+
+      {reviewPrompt && (
+        <ReviewCommentModal
+          status={reviewPrompt.status}
+          onConfirm={confirmReview}
+          onCancel={() => setReviewPrompt(null)}
+        />
       )}
     </div>
   );

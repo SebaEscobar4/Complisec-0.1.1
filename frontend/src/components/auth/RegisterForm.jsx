@@ -22,6 +22,63 @@ const RegisterForm = ({ onRegisterSuccess, onGoToLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // ── Verificación de correo (paso previo al formulario) ──────────────────
+  const [step, setStep] = useState('email'); // 'email' | 'code' | 'form'
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationError, setVerificationError] = useState('');
+  const [verificationInfo, setVerificationInfo] = useState('');
+
+  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+  const handleSendCode = async (e) => {
+    e.preventDefault();
+    setVerificationError('');
+    setVerificationInfo('');
+
+    if (!isValidEmail(formData.email)) {
+      setVerificationError('Ingresa un correo electrónico válido.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await axios.post('/api/auth/send-code', { email: formData.email.trim().toLowerCase() });
+      setVerificationInfo(`Te enviamos un código a ${formData.email.trim().toLowerCase()}.`);
+      setStep('code');
+    } catch (err) {
+      if (err.response?.status === 409) {
+        setVerificationError(err.response.data.message || 'Este correo ya está registrado.');
+      } else {
+        setVerificationError('No se pudo enviar el código. Inténtalo de nuevo.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e) => {
+    e.preventDefault();
+    setVerificationError('');
+
+    if (!verificationCode.trim()) {
+      setVerificationError('Ingresa el código que recibiste.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await axios.post('/api/auth/verify-code', {
+        email: formData.email.trim().toLowerCase(),
+        code: verificationCode.trim(),
+      });
+      setStep('form');
+    } catch (err) {
+      setVerificationError(err.response?.data?.message || 'El código es inválido o ha expirado.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -153,6 +210,98 @@ const RegisterForm = ({ onRegisterSuccess, onGoToLogin }) => {
         <div className="alert-error" data-testid="server-error">{serverError}</div>
       )}
 
+      {/* ── Paso 1: verificación de correo ──────────────────────────────── */}
+      {step === 'email' && (
+        <form onSubmit={handleSendCode} data-testid="email-step-form">
+          <p className="subtitle" style={{ marginTop: 0 }}>
+            Para comenzar, ingresa tu correo electrónico. Te enviaremos un código de verificación.
+          </p>
+
+          {verificationError && (
+            <div className="alert-error">{verificationError}</div>
+          )}
+
+          <div className="form-group">
+            <label htmlFor="reg-email-step">Correo electrónico *</label>
+            <input
+              id="reg-email-step" type="email" name="email"
+              value={formData.email} onChange={handleChange}
+              placeholder="Ej: admin@miempresa.com"
+              autoComplete="email"
+              style={inputStyle('email')}
+              data-testid="input-admin-email"
+            />
+          </div>
+
+          <button type="submit" className="btn-primary full-width" disabled={isLoading}>
+            {isLoading ? 'Enviando código...' : 'Enviar código de verificación'}
+          </button>
+
+          <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+            <p className="text-small text-secondary">
+              ¿Ya tienes una cuenta?{' '}
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit' }}
+                onClick={onGoToLogin}
+              >
+                Inicia sesión
+              </button>
+            </p>
+          </div>
+        </form>
+      )}
+
+      {/* ── Paso 2: ingreso del código recibido ─────────────────────────── */}
+      {step === 'code' && (
+        <form onSubmit={handleVerifyCode} data-testid="code-step-form">
+          {verificationInfo && (
+            <div className="alert-success">{verificationInfo}</div>
+          )}
+          {verificationError && (
+            <div className="alert-error">{verificationError}</div>
+          )}
+
+          <div className="form-group">
+            <label htmlFor="reg-code">Código de verificación *</label>
+            <input
+              id="reg-code" type="text" name="verificationCode"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              placeholder="123456"
+              maxLength={6}
+              style={inputStyle('code')}
+              data-testid="input-verification-code"
+            />
+          </div>
+
+          <button type="submit" className="btn-primary full-width" disabled={isLoading}>
+            {isLoading ? 'Verificando...' : 'Verificar código'}
+          </button>
+
+          <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit' }}
+              onClick={handleSendCode}
+              disabled={isLoading}
+            >
+              Reenviar código
+            </button>
+            {' · '}
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit' }}
+              onClick={() => { setStep('email'); setVerificationCode(''); setVerificationError(''); setVerificationInfo(''); }}
+            >
+              Cambiar correo
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ── Paso 3: formulario de registro ──────────────────────────────── */}
+      {step === 'form' && (
       <form onSubmit={handleSubmit} data-testid="register-form">
         {/* ── Organización ────────────────────────────────────────────── */}
         <fieldset>
@@ -228,12 +377,11 @@ const RegisterForm = ({ onRegisterSuccess, onGoToLogin }) => {
             <label htmlFor="reg-email">Correo electrónico *</label>
             <input
               id="reg-email" type="email" name="email"
-              value={formData.email} onChange={handleChange}
-              placeholder="Ej: admin@miempresa.com"
-              autoComplete="email"
-              style={inputStyle('email')}
+              value={formData.email} readOnly
+              style={{ ...inputStyle('email'), opacity: 0.7, cursor: 'not-allowed' }}
               data-testid="input-admin-email"
             />
+            <span className="text-small text-secondary">✅ Correo verificado</span>
             {errors.email && <span className="error-text" data-testid="error-admin-email">{errors.email}</span>}
           </div>
 
@@ -326,6 +474,7 @@ const RegisterForm = ({ onRegisterSuccess, onGoToLogin }) => {
           </p>
         </div>
       </form>
+      )}
     </div>
   );
 };

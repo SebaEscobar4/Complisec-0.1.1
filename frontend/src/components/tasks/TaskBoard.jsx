@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from '../../utils/axiosSetup';
 import TaskExecutionModal from './TaskExecutionModal';
 
-const TaskBoard = ({ organizationId }) => {
+const TaskBoard = ({ organizationId, viewParams }) => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Para el modal
   const [selectedRisk, setSelectedRisk] = useState(null);
 
@@ -15,6 +15,15 @@ const TaskBoard = ({ organizationId }) => {
       fetchPlans();
     }
   }, [organizationId]);
+
+  // Si venimos del Dashboard con un control específico, abrir su panel directamente
+  useEffect(() => {
+    if (!viewParams?.controlNumber || plans.length === 0) return;
+    const plan = plans.find(p => p.control_number === viewParams.controlNumber);
+    if (plan) {
+      setSelectedRisk({ id: plan.risk_profile_id, threat: plan.threat, vulnerability: plan.vulnerability });
+    }
+  }, [viewParams, plans]);
 
   const fetchPlans = async () => {
     setLoading(true);
@@ -99,7 +108,25 @@ const TaskBoard = ({ organizationId }) => {
 
       {error && <div className="alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
-      {loading ? (
+      {selectedRisk ? (
+        <div>
+          <button
+            onClick={() => { setSelectedRisk(null); fetchPlans(); }}
+            className="btn-primary outline"
+            style={{ marginBottom: '1rem' }}
+          >
+            ← Volver al tablero
+          </button>
+          <TaskExecutionModal
+            riskContext={selectedRisk}
+            organizationId={organizationId}
+            onClose={() => {
+              setSelectedRisk(null);
+              fetchPlans();
+            }}
+          />
+        </div>
+      ) : loading ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>Cargando tablero...</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', alignItems: 'start' }}>
@@ -138,17 +165,6 @@ const TaskBoard = ({ organizationId }) => {
           </div>
 
         </div>
-      )}
-
-      {selectedRisk && (
-        <TaskExecutionModal
-          riskContext={selectedRisk}
-          organizationId={organizationId}
-          onClose={() => {
-            setSelectedRisk(null);
-            fetchPlans(); 
-          }}
-        />
       )}
     </div>
   );

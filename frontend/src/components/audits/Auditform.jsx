@@ -123,7 +123,7 @@ const AuditForm = ({ organizationId, onSuccess, onCancel }) => {
             </div>
 
             {/* Fila 2 — Fecha | Responsable | Auditor */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
               <div>
                 <Label text="Fecha de inicio" />
                 <input type="date" name="start_date" value={form.start_date} onChange={ch}
@@ -135,7 +135,7 @@ const AuditForm = ({ organizationId, onSuccess, onCancel }) => {
               <div>
                 <Label text="Responsable auditoría" required />
                 <input name="responsible_name" value={form.responsible_name} onChange={ch}
-                  style={fieldStyle('responsible_name')} placeholder="Ej: Millaray Miranda"
+                  style={fieldStyle('responsible_name')} placeholder="Ej: Ana Torres"
                   onFocus={e => e.target.style.borderColor = 'var(--accent)'}
                   onBlur={e => e.target.style.borderColor = errors.responsible_name ? 'var(--danger)' : 'rgba(255,255,255,.12)'}
                 />

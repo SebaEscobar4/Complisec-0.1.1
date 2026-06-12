@@ -12,8 +12,29 @@ const riskMeta = (score) => {
   return               { color: 'var(--success)', label: 'Bajo'    };
 };
 
-const STEPS = ['Empresa','Personas A.6','Físico A.7','Incidentes A.16','Perfil de riesgo','Activos','Revisión'];
+const STEPS = ['Empresa','Personas A.6','Físico A.7','Incidentes A.16','Activos','Perfil de riesgo','Revisión'];
 const TRI_MAP = { no: 88, sin: 52, ok: 14 };
+
+// Mapeo de respuestas Sí/Existe/Documentado a controles del Anexo A
+const TRI_CONTROL_MAP = {
+  nda:              '6.6',
+  induccion:        '6.2',
+  capacitacion:     '6.3',
+  salida:           '6.5',
+  accesoFisico:     '7.1',
+  protAmbiental:    '7.5',
+  escritorioLimpio: '7.7',
+  inc:              '5.24',
+  canalReporte:     '6.8',
+  registroInc:      '5.27',
+};
+
+// Claves de TriGroup que requieren evidencia obligatoria cuando la respuesta no es "No existe"
+const STEP_EVIDENCE_KEYS = {
+  1: ['nda', 'induccion', 'capacitacion', 'salida'],
+  2: ['accesoFisico', 'protAmbiental', 'escritorioLimpio'],
+  3: ['inc', 'canalReporte', 'registroInc'],
+};
 
 // ─── Catálogo de activos predefinidos ─────────────────────────────────────────
 // Cada activo tiene valores C-I-A preconfigurados + amenazas automáticas
@@ -161,27 +182,46 @@ const CATALOG_CATEGORIES = [...new Set(Object.values(ASSET_CATALOG).map(a => a.c
 
 
 // ─── TriGroup ────────────────────────────────────────────────────────────────
-function TriGroup({ groupKey, state, onSelect, options }) {
+function TriGroup({ groupKey, state, onSelect, options, evidenceFile, onFileChange, evidenceError }) {
   const vs = {
     no:  { border:'var(--danger)',  bg:'rgba(239,68,68,.08)',  text:'var(--danger)'  },
     sin: { border:'var(--warning)', bg:'rgba(245,158,11,.08)', text:'var(--warning)' },
     ok:  { border:'var(--success)', bg:'rgba(16,185,129,.08)', text:'var(--success)' },
   };
+  const current = state[groupKey];
+  const needsEvidence = current === 'ok';
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'0.6rem' }}>
-      {options.map(([v, title, desc]) => {
-        const active = state[groupKey] === v;
-        return (
-          <div key={v} onClick={() => onSelect(groupKey, v)} style={{
-            border: `1.5px solid ${active ? vs[v].border : 'var(--border)'}`,
-            borderRadius:10, padding:'0.75rem', cursor:'pointer', textAlign:'center',
-            background: active ? vs[v].bg : 'rgba(255,255,255,.03)', transition:'all .15s',
-          }}>
-            <div style={{ fontSize:'0.85rem', fontWeight:600, marginBottom:3, color: active ? vs[v].text : 'var(--text-primary)' }}>{title}</div>
-            <div style={{ fontSize:'0.75rem', color:'var(--text-secondary)' }}>{desc}</div>
-          </div>
-        );
-      })}
+    <div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'0.6rem' }}>
+        {options.map(([v, title, desc]) => {
+          const active = state[groupKey] === v;
+          return (
+            <div key={v} onClick={() => onSelect(groupKey, v)} style={{
+              border: `1.5px solid ${active ? vs[v].border : 'var(--border)'}`,
+              borderRadius:10, padding:'0.75rem', cursor:'pointer', textAlign:'center',
+              background: active ? vs[v].bg : 'rgba(255,255,255,.03)', transition:'all .15s',
+            }}>
+              <div style={{ fontSize:'0.85rem', fontWeight:600, marginBottom:3, color: active ? vs[v].text : 'var(--text-primary)' }}>{title}</div>
+              <div style={{ fontSize:'0.75rem', color:'var(--text-secondary)' }}>{desc}</div>
+            </div>
+          );
+        })}
+      </div>
+      {needsEvidence && onFileChange && (
+        <div style={{ marginTop:'0.6rem', border:`1px dashed ${evidenceError ? 'var(--danger)' : 'var(--border)'}`, borderRadius:8, padding:'0.6rem 0.85rem', background:'rgba(255,255,255,.02)' }}>
+          <label style={{ display:'flex', alignItems:'center', gap:'0.6rem', cursor:'pointer', fontSize:'0.8rem' }}>
+            <span style={{ flexShrink:0 }}>📎</span>
+            <span style={{ color:'var(--text-secondary)' }}>
+              {evidenceFile ? evidenceFile.name : 'Sube una evidencia que respalde tu respuesta (obligatorio)'}
+            </span>
+            <input type="file" style={{ display:'none' }} onChange={e => onFileChange(groupKey, e.target.files?.[0] || null)} />
+            <span className="btn-primary outline" style={{ marginLeft:'auto', fontSize:'0.75rem', padding:'0.3rem 0.7rem', flexShrink:0 }}>
+              {evidenceFile ? 'Cambiar' : 'Subir archivo'}
+            </span>
+          </label>
+          {evidenceError && <div style={{ color:'var(--danger)', fontSize:'0.75rem', marginTop:'0.4rem' }}>{evidenceError}</div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -231,6 +271,26 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
   const [officer, setOfficer] = useState({ name:'', role:'' });
   const [catFilter, setCatFilter]     = useState('');
   const [error, setError]   = useState('');
+  const [evidenceFiles, setEvidenceFiles] = useState({});
+  const [evidenceErrors, setEvidenceErrors] = useState({});
+
+  const handleEvidenceFile = (groupKey, file) => {
+    setEvidenceFiles(prev => ({ ...prev, [groupKey]: file }));
+    if (file) setEvidenceErrors(prev => ({ ...prev, [groupKey]: '' }));
+  };
+
+  // Valida que toda respuesta "existe/documentado" del paso actual tenga evidencia adjunta
+  const validateStepEvidence = (stepIndex) => {
+    const keys = STEP_EVIDENCE_KEYS[stepIndex] || [];
+    const errors = {};
+    keys.forEach(key => {
+      if (tri[key] === 'ok' && !evidenceFiles[key]) {
+        errors[key] = 'Debes adjuntar una evidencia ya que indicaste que este control está documentado.';
+      }
+    });
+    setEvidenceErrors(prev => ({ ...prev, ...errors }));
+    return Object.keys(errors).length === 0;
+  };
   const [showResume, setShowResume] = useState(!!saved && saved.step > 0);
 
   const [sel, setSels] = useState(saved?.sel ?? { dataSensitivity:'', regulation:'No aplica', providers:'', systems:'', patches:'', rto:'', training:'', providerClauses:'', reviewFreq:'12m' });
@@ -274,6 +334,53 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
     });
   };
 
+  // Selección del tipo de evidencia disponible. "Sin evidencia" eleva la probabilidad
+  // de riesgo en todos los dominios, ya que ningún control puede darse por implementado
+  // sin respaldo verificable, sin importar lo que se haya respondido antes.
+  const handleEvSel = (k) => {
+    const prevWasNone = evSel === 'none';
+    setEvSel(k);
+    setRiskData(prev => {
+      const n = {};
+      Object.entries(prev).forEach(([key, r]) => {
+        let prob = r.prob;
+        if (k === 'none' && !prevWasNone) prob = Math.min(100, Math.max(prob, 75));
+        if (k !== 'none' && prevWasNone)   prob = Math.max(0, prob - 25);
+        n[key] = { ...r, prob };
+      });
+      return n;
+    });
+  };
+
+  const buildControlAssessments = () => {
+    const TRI_STATUS = { no: 'NOT_IMPLEMENTED', sin: 'PARTIAL', ok: 'FULLY_IMPLEMENTED' };
+    const triMap = TRI_CONTROL_MAP;
+    const selStatusMaps = {
+      sancionesConocimiento: { no: 'NOT_IMPLEMENTED', parcial: 'PARTIAL', si: 'FULLY_IMPLEMENTED' },
+      visitantes:            { no: 'NOT_IMPLEMENTED', parcial: 'PARTIAL', si: 'FULLY_IMPLEMENTED' },
+      revisionFisica:        { no: 'NOT_IMPLEMENTED', incidente: 'PARTIAL', anual: 'PARTIAL', semestral: 'FULLY_IMPLEMENTED' },
+      tiempoDeteccion:       { no: 'NOT_IMPLEMENTED', dias: 'PARTIAL', horas: 'PARTIAL', inmediato: 'FULLY_IMPLEMENTED' },
+    };
+    const selMap = {
+      sancionesConocimiento: '6.4',
+      visitantes:            '7.2',
+      revisionFisica:        '7.9',
+      tiempoDeteccion:       '5.25',
+    };
+
+    const assessments = [];
+    Object.entries(triMap).forEach(([key, control_number]) => {
+      const v = tri[key];
+      if (v && TRI_STATUS[v]) assessments.push({ control_number, implementation_status: TRI_STATUS[v] });
+    });
+    Object.entries(selMap).forEach(([key, control_number]) => {
+      const v = sel[key];
+      const status = selStatusMaps[key]?.[v];
+      if (status) assessments.push({ control_number, implementation_status: status });
+    });
+    return assessments;
+  };
+
   const handleFinish = async () => {
     // Validar responsable
     if (!officer.name.trim() || !officer.role.trim()) {
@@ -303,7 +410,7 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
       };
     });
     try {
-      await axios.post('/api/diagnostic', {
+      const diagRes = await axios.post('/api/diagnostic', {
         organization_id: organizationId,
         risks,
         officer: {
@@ -312,7 +419,21 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
           reviewFrequency: sel.reviewFreq || '12m',
           commitments:     Object.keys(checks).filter(k => checks[k]),
         },
+        control_assessments: buildControlAssessments(),
       });
+
+      // Subir evidencias adjuntadas para controles marcados como existentes
+      const soaMap = diagRes.data?.data?.soaMap || {};
+      for (const [groupKey, file] of Object.entries(evidenceFiles)) {
+        if (!file) continue;
+        const controlNumber = TRI_CONTROL_MAP[groupKey];
+        const soaId = soaMap[controlNumber];
+        if (!soaId) continue;
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('soa_id', soaId);
+        await axios.post('/api/evidences', fd).catch(() => {});
+      }
       // Guardar activos + riesgos automáticos del catálogo
       if (assets.length > 0) {
         for (const a of assets) {
@@ -426,28 +547,28 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
         </p>
       </div>
       <FG label="¿Los empleados firman acuerdos de confidencialidad (NDA) al ingresar?" iso="A.6.6">
-        <TriGroup groupKey="nda" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="nda" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.nda} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.nda} options={[
           ['no','No existe','Sin NDA firmado'],
           ['sin','Parcial','Algunos roles lo firman'],
           ['ok','Todos firman','Con registro y fecha'],
         ]} />
       </FG>
       <FG label="¿Tienen proceso de inducción en seguridad para empleados nuevos?" iso="A.6.2">
-        <TriGroup groupKey="induccion" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="induccion" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.induccion} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.induccion} options={[
           ['no','No existe','Sin inducción definida'],
           ['sin','Informal','Sin documentar ni registrar'],
           ['ok','Documentado','Con registro de asistencia'],
         ]} />
       </FG>
       <FG label="¿Los empleados reciben capacitación periódica en seguridad de la información?" iso="A.6.3">
-        <TriGroup groupKey="capacitacion" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="capacitacion" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.capacitacion} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.capacitacion} options={[
           ['no','Nunca','Sin capacitación'],
           ['sin','Esporádica','Sin frecuencia fija'],
           ['ok','Periódica','Al menos 1 vez al año, documentada'],
         ]} />
       </FG>
       <FG label="¿Existe un proceso formal de salida de empleados (revocación de accesos, devolución de equipos)?" iso="A.6.5">
-        <TriGroup groupKey="salida" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="salida" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.salida} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.salida} options={[
           ['no','No existe','Se hace ad-hoc'],
           ['sin','Existe','Sin checklist formal'],
           ['ok','Documentado','Checklist con responsable y firma'],
@@ -476,21 +597,21 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
         </p>
       </div>
       <FG label="¿Las áreas con sistemas o datos críticos tienen acceso restringido?" iso="A.7.1">
-        <TriGroup groupKey="accesoFisico" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="accesoFisico" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.accesoFisico} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.accesoFisico} options={[
           ['no','Sin restricción','Cualquiera puede acceder'],
           ['sin','Parcial','Solo llave/tarjeta, sin registro'],
           ['ok','Controlado','Con registro de acceso y responsable'],
         ]} />
       </FG>
       <FG label="¿Los servidores o equipos críticos están en áreas con protección ambiental (temperatura, humedad, UPS)?" iso="A.7.5">
-        <TriGroup groupKey="protAmbiental" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="protAmbiental" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.protAmbiental} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.protAmbiental} options={[
           ['no','Sin protección','Equipos expuestos'],
           ['sin','Básica','Solo ventilación, sin UPS'],
           ['ok','Adecuada','Aire acondicionado + UPS + monitoreo'],
         ]} />
       </FG>
       <FG label="¿Existe una política de escritorio y pantalla limpia (sin información sensible visible)?" iso="A.7.7">
-        <TriGroup groupKey="escritorioLimpio" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="escritorioLimpio" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.escritorioLimpio} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.escritorioLimpio} options={[
           ['no','No existe','Sin política definida'],
           ['sin','Existe','No se cumple ni se audita'],
           ['ok','Implementada','Auditada periódicamente'],
@@ -528,21 +649,21 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
         </p>
       </div>
       <FG label="¿Existe un procedimiento documentado de respuesta a incidentes de seguridad?" iso="A.5.24">
-        <TriGroup groupKey="inc" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="inc" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.inc} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.inc} options={[
           ['no','No existe','Actuamos ad-hoc'],
           ['sin','Existe','Sin documentar'],
           ['ok','Documentado','Con responsable y plazos'],
         ]} />
       </FG>
       <FG label="¿Los empleados saben a quién reportar un incidente o comportamiento sospechoso?" iso="A.6.8">
-        <TriGroup groupKey="canalReporte" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="canalReporte" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.canalReporte} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.canalReporte} options={[
           ['no','No existe','No hay canal definido'],
           ['sin','Informal','Se avisa al jefe directo'],
           ['ok','Formal','Canal definido y comunicado a todos'],
         ]} />
       </FG>
       <FG label="¿Se registran y analizan los incidentes de seguridad para aprender de ellos?" iso="A.5.27">
-        <TriGroup groupKey="registroInc" state={tri} onSelect={handleTri} options={[
+        <TriGroup groupKey="registroInc" state={tri} onSelect={handleTri} evidenceFile={evidenceFiles.registroInc} onFileChange={handleEvidenceFile} evidenceError={evidenceErrors.registroInc} options={[
           ['no','No se registran','Sin historial'],
           ['sin','Se registran','Sin análisis posterior'],
           ['ok','Registrados y analizados','Con acciones correctivas'],
@@ -559,59 +680,8 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
       </FG>
     </div>,
 
-    // 4 — Perfil de riesgo (key ya correcto en IIFE)
-    // 5 — Perfil de riesgo
-    (() => {
-      const riskList = Object.entries(riskData).map(([key,r]) => {
-        const score = calcScore(r.prob, r.impact);
-        return { key, ...r, score, ...riskMeta(score) };
-      });
-      const critical = riskList.filter(r=>r.score>=70).length;
-      const high     = riskList.filter(r=>r.score>=45&&r.score<70).length;
-      const low      = riskList.filter(r=>r.score<45).length;
-      return (
-        <div key={5} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
-          <div><h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Tu perfil de riesgo inicial</h2>
-          <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>Calculado en base a tus respuestas. Aparecerá en el dashboard hasta que evalúes riesgos específicos por activo.</p></div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'1rem' }}>
-            {[['Críticos',critical,'var(--danger)'],['Altos',high,'var(--warning)'],['Controlados',low,'var(--success)']].map(([l,n,c]) => (
-              <div key={l} className="glass-panel" style={{ textAlign:'center', padding:'1.25rem' }}>
-                <div style={{ fontSize:'2.5rem', fontWeight:700, color:c, lineHeight:1 }}>{n}</div>
-                <div style={{ fontSize:'0.78rem', color:'var(--text-secondary)', marginTop:'0.35rem', textTransform:'uppercase', letterSpacing:'.05em' }}>{l}</div>
-              </div>
-            ))}
-          </div>
-          <div className="glass-panel">
-            <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:'1rem' }}>Exposición por dominio</div>
-            {riskList.map(r => (
-              <div key={r.key} style={{ display:'flex', alignItems:'center', gap:'0.75rem', marginBottom:'0.85rem' }}>
-                <span style={{ fontSize:'0.82rem', color:'var(--text-secondary)', width:185, flexShrink:0 }}>{r.label}</span>
-                <div style={{ flex:1, height:6, background:'rgba(255,255,255,.06)', borderRadius:3, overflow:'hidden' }}>
-                  <div style={{ height:6, width:`${r.score||2}%`, background:r.color, borderRadius:3, transition:'width .6s ease' }} />
-                </div>
-                <span style={{ fontSize:'0.78rem', fontWeight:600, color:r.color, width:52, textAlign:'right', flexShrink:0 }}>{r.label}</span>
-              </div>
-            ))}
-          </div>
-          <FG label="¿Qué tipo de evidencia tienen disponible hoy?">
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
-              {[['doc','📄 Documento / política','PDF o Word con fecha y firma'],['config','⚙️ Configuración exportada','Captura o export del sistema'],['log','📋 Registro de actividad','Log con timestamps'],['test','🧪 Resultado de prueba','Test o simulacro documentado']].map(([k,t,d]) => (
-                <div key={k} onClick={()=>setEvSel(k)} style={{ border:`1.5px solid ${evSel===k?'var(--accent)':'var(--border)'}`, borderRadius:10, padding:'0.85rem 1rem', cursor:'pointer', background: evSel===k?'rgba(59,130,246,.08)':'rgba(255,255,255,.03)', transition:'all .15s' }}>
-                  <div style={{ fontSize:'0.85rem', fontWeight:600, color: evSel===k?'var(--accent)':'var(--text-primary)', marginBottom:2 }}>{t}</div>
-                  <div style={{ fontSize:'0.75rem', color:'var(--text-secondary)' }}>{d}</div>
-                </div>
-              ))}
-            </div>
-          </FG>
-          <div style={{ background:'rgba(245,158,11,.06)', border:'1px solid rgba(245,158,11,.2)', borderRadius:8, padding:'0.75rem 1rem', fontSize:'0.82rem', color:'var(--warning)' }}>
-            ⚠️ Una política escrita NO es evidencia de implementación. Se requieren ambas por separado.
-          </div>
-        </div>
-      );
-    })(),
-
-    // 6 — Activos (catálogo inteligente)
-    <div key={6} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
+    // 4 — Activos (catálogo inteligente)
+    <div key={4} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
       <div>
         <span style={{ display:'inline-flex', alignItems:'center', background:'rgba(16,185,129,.08)', border:'1px solid rgba(16,185,129,.2)', borderRadius:20, padding:'3px 10px', fontSize:'0.75rem', color:'var(--success)', fontWeight:600, marginBottom:'0.6rem' }}>A.8 Activos de información</span>
         <h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Inventario de activos</h2>
@@ -751,6 +821,56 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
       )}
     </div>,
 
+    // 5 — Perfil de riesgo
+    (() => {
+      const riskList = Object.entries(riskData).map(([key,r]) => {
+        const score = calcScore(r.prob, r.impact);
+        return { key, ...r, score, ...riskMeta(score) };
+      });
+      const critical = riskList.filter(r=>r.score>=70).length;
+      const high     = riskList.filter(r=>r.score>=45&&r.score<70).length;
+      const low      = riskList.filter(r=>r.score<45).length;
+      return (
+        <div key={5} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
+          <div><h2 style={{ fontSize:'1.5rem', fontWeight:700, margin:'0 0 .4rem', letterSpacing:'-.02em' }}>Tu perfil de riesgo inicial</h2>
+          <p style={{ color:'var(--text-secondary)', margin:0, fontSize:'0.9rem' }}>Calculado en base a tus respuestas y a los activos registrados. Aparecerá en el dashboard hasta que evalúes riesgos específicos por activo.</p></div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'1rem' }}>
+            {[['Críticos',critical,'var(--danger)'],['Altos',high,'var(--warning)'],['Controlados',low,'var(--success)']].map(([l,n,c]) => (
+              <div key={l} className="glass-panel" style={{ textAlign:'center', padding:'1.25rem' }}>
+                <div style={{ fontSize:'2.5rem', fontWeight:700, color:c, lineHeight:1 }}>{n}</div>
+                <div style={{ fontSize:'0.78rem', color:'var(--text-secondary)', marginTop:'0.35rem', textTransform:'uppercase', letterSpacing:'.05em' }}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div className="glass-panel">
+            <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:'1rem' }}>Exposición por dominio</div>
+            {riskList.map(r => (
+              <div key={r.key} style={{ display:'flex', alignItems:'center', gap:'0.75rem', marginBottom:'0.85rem' }}>
+                <span style={{ fontSize:'0.82rem', color:'var(--text-secondary)', width:185, flexShrink:0 }}>{r.label}</span>
+                <div style={{ flex:1, height:6, background:'rgba(255,255,255,.06)', borderRadius:3, overflow:'hidden' }}>
+                  <div style={{ height:6, width:`${r.score||2}%`, background:r.color, borderRadius:3, transition:'width .6s ease' }} />
+                </div>
+                <span style={{ fontSize:'0.78rem', fontWeight:600, color:r.color, width:52, textAlign:'right', flexShrink:0 }}>{r.label}</span>
+              </div>
+            ))}
+          </div>
+          <FG label="¿Qué tipo de evidencia tienen disponible hoy?">
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
+              {[['doc','📄 Documento / política','PDF o Word con fecha y firma'],['config','⚙️ Configuración exportada','Captura o export del sistema'],['log','📋 Registro de actividad','Log con timestamps'],['test','🧪 Resultado de prueba','Test o simulacro documentado'],['none','🚫 Sin evidencia','No contamos con evidencia documentada']].map(([k,t,d]) => (
+                <div key={k} onClick={()=>handleEvSel(k)} style={{ border:`1.5px solid ${evSel===k?(k==='none'?'var(--danger)':'var(--accent)'):'var(--border)'}`, borderRadius:10, padding:'0.85rem 1rem', cursor:'pointer', background: evSel===k?(k==='none'?'rgba(239,68,68,.08)':'rgba(59,130,246,.08)'):'rgba(255,255,255,.03)', transition:'all .15s' }}>
+                  <div style={{ fontSize:'0.85rem', fontWeight:600, color: evSel===k?(k==='none'?'var(--danger)':'var(--accent)'):'var(--text-primary)', marginBottom:2 }}>{t}</div>
+                  <div style={{ fontSize:'0.75rem', color:'var(--text-secondary)' }}>{d}</div>
+                </div>
+              ))}
+            </div>
+          </FG>
+          <div style={{ background:'rgba(245,158,11,.06)', border:'1px solid rgba(245,158,11,.2)', borderRadius:8, padding:'0.75rem 1rem', fontSize:'0.82rem', color:'var(--warning)' }}>
+            ⚠️ Una política escrita NO es evidencia de implementación. Se requieren ambas por separado.
+          </div>
+        </div>
+      );
+    })(),
+
     // 7 — Revisión
     <div key={7} style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
       <div>
@@ -772,7 +892,7 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
           La norma exige que alguien dentro de la organización sea formalmente responsable del SGSI.
           Esta persona será el punto de contacto en auditorías y revisiones.
         </p>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'0.75rem' }}>
           <div>
             <label style={{ fontSize:'0.8rem', color:'var(--text-secondary)', display:'block', marginBottom:'0.35rem', fontWeight:500 }}>
               Nombre completo *
@@ -780,8 +900,8 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
             <input
               value={officer.name}
               onChange={e=>setOfficer(p=>({...p,name:e.target.value}))}
-              placeholder="Ej: Millaray Miranda"
-              style={{ background:'rgba(0,0,0,.25)', border:`1px solid ${!officer.name && error?'var(--danger)':'var(--border)'}`, borderRadius:8, padding:'0.7rem 1rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%' }}
+              placeholder="Ej: Ana Torres"
+              style={{ background:'rgba(0,0,0,.25)', border:`1px solid ${!officer.name && error?'var(--danger)':'var(--border)'}`, borderRadius:8, padding:'0.7rem 1rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%', boxSizing:'border-box' }}
             />
           </div>
           <div>
@@ -792,7 +912,7 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
               value={officer.role}
               onChange={e=>setOfficer(p=>({...p,role:e.target.value}))}
               placeholder="Ej: CISO, Gerente TI, Encargado de seguridad"
-              style={{ background:'rgba(0,0,0,.25)', border:`1px solid ${!officer.role && error?'var(--danger)':'var(--border)'}`, borderRadius:8, padding:'0.7rem 1rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%' }}
+              style={{ background:'rgba(0,0,0,.25)', border:`1px solid ${!officer.role && error?'var(--danger)':'var(--border)'}`, borderRadius:8, padding:'0.7rem 1rem', color:'var(--text-primary)', fontSize:'0.88rem', outline:'none', width:'100%', boxSizing:'border-box' }}
             />
           </div>
         </div>
@@ -948,11 +1068,11 @@ const DiagnosticWizard = ({ organizationId, userName, onComplete }) => {
             </button>
             <span style={{ fontSize:'0.78rem', color:'var(--text-secondary)' }}>Paso {step+1} de {STEPS.length}</span>
             {step < STEPS.length-1 ? (
-              <button onClick={()=>setStep(s=>s+1)} className="btn-primary" style={{ padding:'0.75rem 1.75rem', fontSize:'0.9rem' }}>
+              <button onClick={()=>{ if (validateStepEvidence(step)) setStep(s=>s+1); }} className="btn-primary" style={{ padding:'0.75rem 1.75rem', fontSize:'0.9rem' }}>
                 Siguiente →
               </button>
             ) : (
-              <button onClick={handleFinish} disabled={saving} className="btn-primary" style={{ padding:'0.75rem 2rem', fontSize:'0.9rem', opacity:saving?0.7:1, cursor:saving?'not-allowed':'pointer' }}>
+              <button onClick={()=>{ if (validateStepEvidence(3)) handleFinish(); }} disabled={saving} className="btn-primary" style={{ padding:'0.75rem 2rem', fontSize:'0.9rem', opacity:saving?0.7:1, cursor:saving?'not-allowed':'pointer' }}>
                 {saving ? 'Guardando...' : '✅ Generar perfil de cumplimiento'}
               </button>
             )}

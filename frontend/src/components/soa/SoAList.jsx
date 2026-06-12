@@ -11,7 +11,7 @@ const SoAList = ({ organizationId, viewParams }) => {
   const [viewingEvidences, setViewingEvidences] = useState(null);
   const [filterStatus, setFilterStatus]   = useState(viewParams?.filter || 'ALL');
   const [filterDomain, setFilterDomain]   = useState('ALL');
-  const [search, setSearch]               = useState('');
+  const [search, setSearch]               = useState(viewParams?.search || '');
 
   const fetchSoA = async () => {
     setLoading(true);
@@ -32,6 +32,11 @@ const SoAList = ({ organizationId, viewParams }) => {
   useEffect(() => {
     if (viewParams && viewParams.filter) {
       setFilterStatus(viewParams.filter);
+    }
+    if (viewParams && viewParams.search) {
+      setSearch(viewParams.search);
+      setFilterStatus('ALL');
+      setFilterDomain('ALL');
     }
   }, [viewParams]);
 

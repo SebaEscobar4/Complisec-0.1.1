@@ -14,6 +14,11 @@ const TaskExecutionModal = ({ riskContext, organizationId, onClose }) => {
   const fileInputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
 
+  // Modal de revisión de evidencia
+  const [reviewModal, setReviewModal] = useState(null); // { evidenceId, status, comment }
+  // Modal de mensaje informativo
+  const [infoModal, setInfoModal] = useState(null); // { title, message, onAccept }
+
   // User role (Security check)
   const token = localStorage.getItem('token');
   const userRole = token ? (jwtDecode(token)?.role || '') : '';
@@ -77,13 +82,17 @@ const TaskExecutionModal = ({ riskContext, organizationId, onClose }) => {
     }
   };
 
-  const handleReview = async (evidenceId, status) => {
+  const handleReview = (evidenceId, status) => {
     if (!canReview) return; // Capa extra de seguridad front-end
-    const comment = window.prompt('Deja un comentario sobre tu revisión:');
-    if (comment === null) return;
+    setReviewModal({ evidenceId, status, comment: '' });
+  };
+
+  const submitReview = async () => {
+    if (!reviewModal) return;
     try {
-      await axios.patch(`/api/evidences/${evidenceId}/review`, { review_status: status, review_comment: comment });
-      fetchData(); 
+      await axios.patch(`/api/evidences/${reviewModal.evidenceId}/review`, { review_status: reviewModal.status, review_comment: reviewModal.comment });
+      setReviewModal(null);
+      fetchData();
     } catch {
       alert('No se pudo guardar la revisión.');
     }
@@ -91,7 +100,7 @@ const TaskExecutionModal = ({ riskContext, organizationId, onClose }) => {
 
   const completeControl = async () => {
     if (!canReview) {
-      alert('Solo el rol Auditor, CISO o Admin puede dar el visto bueno final del control.');
+      setInfoModal({ title: '🔒 Acción no permitida', message: 'Solo el rol Auditor, CISO o Admin puede dar el visto bueno final del control.' });
       return;
     }
     if (!soaControl) return;
@@ -104,10 +113,9 @@ const TaskExecutionModal = ({ riskContext, organizationId, onClose }) => {
         implementation_status: 'FULLY_IMPLEMENTED',
         risk_profile_id: riskContext.id
       });
-      alert('¡Control verificado y marcado como implementado exitosamente! El dashboard ha sido actualizado.');
-      onClose();
+      setInfoModal({ title: '🏆 Control implementado', message: '¡Control verificado y marcado como implementado exitosamente! El dashboard ha sido actualizado.', onAccept: onClose });
     } catch (err) {
-      alert('Error al marcar el control como implementado.');
+      setInfoModal({ title: '⚠️ Error', message: 'Error al marcar el control como implementado.' });
     }
   };
 
@@ -116,9 +124,9 @@ const TaskExecutionModal = ({ riskContext, organizationId, onClose }) => {
   const canComplete = allTasksCompleted && hasApprovedEvidence;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: 800, maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-        
+    <div style={{ width: '100%' }}>
+      <div className="glass-panel" style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '1.5rem', borderBottom: '1px solid var(--border)' }}>
           <div>
@@ -272,6 +280,54 @@ const TaskExecutionModal = ({ riskContext, organizationId, onClose }) => {
         </div>
 
       </div>
+
+      {reviewModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: 420, padding: '1.5rem' }}>
+            <h3 style={{ margin: '0 0 1rem' }}>
+              {reviewModal.status === 'APPROVED' ? '✅ Aprobar evidencia' : '❌ Rechazar evidencia'}
+            </h3>
+            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
+              Deja un comentario sobre tu revisión:
+            </label>
+            <textarea
+              autoFocus
+              rows={3}
+              value={reviewModal.comment}
+              onChange={e => setReviewModal(prev => ({ ...prev, comment: e.target.value }))}
+              style={{ width: '100%', resize: 'vertical', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
+              <button onClick={() => setReviewModal(null)} className="btn-primary outline">Cancelar</button>
+              <button
+                onClick={submitReview}
+                className="btn-primary"
+                style={reviewModal.status === 'APPROVED'
+                  ? { background: 'var(--success)', borderColor: 'var(--success)' }
+                  : { background: 'var(--danger)', borderColor: 'var(--danger)' }}
+              >
+                {reviewModal.status === 'APPROVED' ? 'Aprobar' : 'Rechazar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {infoModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: 420, padding: '1.5rem' }}>
+            <h3 style={{ margin: '0 0 1rem' }}>{infoModal.title}</h3>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{infoModal.message}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+              <button
+                onClick={() => { const onAccept = infoModal.onAccept; setInfoModal(null); if (onAccept) onAccept(); }}
+                className="btn-primary"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

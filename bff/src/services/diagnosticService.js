@@ -18,6 +18,46 @@ export const saveDiagnostic = async (organizationId, risks) => {
   }
 };
 
+/**
+ * Aplica las respuestas del diagnóstico inicial al SoA: para cada control
+ * referenciado, crea (si no existe) la fila correspondiente en `soa` con el
+ * estado de implementación derivado de la respuesta. No sobreescribe filas
+ * ya existentes para no perder ajustes manuales posteriores.
+ */
+export const applyDiagnosticToSoA = async (organizationId, controlAssessments) => {
+  const soaMap = {};
+
+  for (const ca of controlAssessments) {
+    const controlRes = await query(
+      `SELECT id FROM annex_a_controls WHERE control_number = $1`,
+      [ca.control_number]
+    );
+    const control = controlRes.rows[0];
+    if (!control) continue;
+
+    const insertRes = await query(
+      `INSERT INTO soa (organization_id, control_id, is_applicable, justification, implementation_status)
+       VALUES ($1, $2, true, 'Definido en diagnóstico inicial', $3)
+       ON CONFLICT (organization_id, control_id) DO NOTHING
+       RETURNING id`,
+      [organizationId, control.id, ca.implementation_status]
+    );
+
+    let soaId = insertRes.rows[0]?.id;
+    if (!soaId) {
+      const existing = await query(
+        `SELECT id FROM soa WHERE organization_id = $1 AND control_id = $2`,
+        [organizationId, control.id]
+      );
+      soaId = existing.rows[0]?.id;
+    }
+
+    if (soaId) soaMap[ca.control_number] = soaId;
+  }
+
+  return soaMap;
+};
+
 export const getDiagnostic = async (organizationId) => {
   const result = await query(
     `SELECT domain_key, domain_label, probability, impact_value, risk_score, risk_level_label

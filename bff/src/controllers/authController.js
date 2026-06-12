@@ -1,4 +1,5 @@
 import { authenticateUser } from '../services/authService.js';
+import { requestVerificationCode, confirmVerificationCode } from '../services/verificationService.js';
 import { query } from '../config/db.js';
 
 /**
@@ -40,6 +41,50 @@ export const handleGetMe = async (req, res, next) => {
 
     return res.status(200).json({ data: result.rows[0] });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/send-code
+ * Genera y envía un código de verificación al correo indicado.
+ */
+export const handleSendCode = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Ingresa un correo electrónico válido.' });
+    }
+
+    await requestVerificationCode(email);
+
+    return res.status(200).json({ message: 'Código enviado. Revisa tu correo electrónico.' });
+  } catch (error) {
+    if (error.message === 'Email already registered') {
+      return res.status(409).json({ error: 'Conflict', message: 'Este correo ya está registrado. Por favor inicia sesión.' });
+    }
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/verify-code
+ * Verifica el código enviado al correo del usuario.
+ */
+export const handleVerifyCode = async (req, res, next) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Correo y código son requeridos.' });
+    }
+
+    await confirmVerificationCode(email, code);
+
+    return res.status(200).json({ message: 'Correo verificado correctamente.' });
+  } catch (error) {
+    if (error.message === 'Invalid or expired code') {
+      return res.status(400).json({ error: 'Bad Request', message: 'El código es inválido o ha expirado.' });
+    }
     next(error);
   }
 };

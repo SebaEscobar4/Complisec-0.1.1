@@ -12,6 +12,54 @@ import Dashboard from './components/dashboard/Dashboard';
 import EvidenceRepository from './components/soa/EvidenceRepository';
 import AuditList from './components/audits/AuditList';
 import TaskBoard from './components/tasks/TaskBoard';
+import ProductTour from './components/onboarding/ProductTour';
+
+const TOUR_STORAGE_KEY = 'compliSec_tour_done';
+
+const TOUR_STEPS = [
+  {
+    target: 'nav-dashboard',
+    view: 'dashboard',
+    title: '¡Bienvenido a CompliSec! 👋',
+    content: 'Este es tu Dashboard: aquí verás tu plan de implementación ISO 27001, tus tareas de remediación pendientes y la evolución de tu cumplimiento.',
+  },
+  {
+    target: 'nav-assets',
+    view: 'assets',
+    title: '🗃️ Activos',
+    content: 'Registra los activos de información de tu organización (servidores, bases de datos, equipos, etc.). Es el punto de partida para identificar riesgos.',
+  },
+  {
+    target: 'nav-risks',
+    view: 'risks',
+    title: '⚠️ Riesgos',
+    content: 'Evalúa los riesgos asociados a cada activo: probabilidad, impacto y el tratamiento que aplicarás (mitigar, aceptar, transferir o evitar).',
+  },
+  {
+    target: 'nav-tasks',
+    view: 'tasks',
+    title: '✅ Tareas',
+    content: 'Aquí gestionas los planes de mitigación: checklist de tareas técnicas, subida de evidencias y aprobación final de cada control implementado.',
+  },
+  {
+    target: 'nav-evidences',
+    view: 'evidences',
+    title: '📁 Evidencias',
+    content: 'Repositorio centralizado de toda la documentación y archivos que respaldan la implementación de tus controles.',
+  },
+  {
+    target: 'nav-audits',
+    view: 'audits',
+    title: '🔍 Auditorías',
+    content: 'Registra y da seguimiento a tus auditorías internas y externas, según la cláusula 9.2 de la norma.',
+  },
+  {
+    target: 'nav-dashboard',
+    view: 'dashboard',
+    title: '🎉 ¡Listo!',
+    content: 'Ya conoces lo básico de la plataforma. Puedes volver a ver este tour cuando quieras desde tu perfil. ¡Mucho éxito con tu certificación!',
+  },
+];
 
 /**
  * Estados de la app:
@@ -30,10 +78,23 @@ function App() {
   const [diagnosticRisks, setDiagnosticRisks] = useState([]);
   const [currentView, setCurrentView]     = useState('dashboard');
   const [viewParams, setViewParams]       = useState({});
+  const [viewHistory, setViewHistory]     = useState([]);
+  const [showTour, setShowTour]           = useState(false);
 
   const handleNavigate = (view, params = {}) => {
+    setViewHistory(prev => [...prev, { view: currentView, params: viewParams }]);
     setCurrentView(view);
     setViewParams(params);
+  };
+
+  const handleGoBack = () => {
+    setViewHistory(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      setCurrentView(last.view);
+      setViewParams(last.params);
+      return prev.slice(0, -1);
+    });
   };
 
   // ── Restaurar sesión desde token guardado ────────────────────────────────
@@ -113,6 +174,7 @@ function App() {
   // ── Callback post-registro: siempre va al diagnóstico ───────────────────
   const handleRegisterSuccess = async (data) => {
     if (data.token) localStorage.setItem('token', data.token);
+    localStorage.removeItem(TOUR_STORAGE_KEY);
 
     const user = {
       id:              data.user?.id,
@@ -132,6 +194,23 @@ function App() {
     }
     setAppState('app');
     handleNavigate('dashboard');
+  };
+
+  // ── Tour guiado: mostrarlo la primera vez que el usuario entra a la app ──
+  useEffect(() => {
+    if (appState === 'app' && !localStorage.getItem(TOUR_STORAGE_KEY)) {
+      setShowTour(true);
+    }
+  }, [appState]);
+
+  const finishTour = () => {
+    localStorage.setItem(TOUR_STORAGE_KEY, '1');
+    setShowTour(false);
+  };
+
+  const restartTour = () => {
+    handleNavigate('dashboard');
+    setShowTour(true);
   };
 
   const handleLogout = () => {
@@ -181,11 +260,11 @@ function App() {
 
   // App principal
   return (
-    <Layout user={currentUser} onLogout={handleLogout}>
+    <Layout user={currentUser} onLogout={handleLogout} onRestartTour={restartTour}>
       <div className="main-content">
 
         {/* Navegación */}
-        <div style={{ marginBottom: '2rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <div style={{ marginBottom: '2rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {[
             { key: 'dashboard', label: '📊 Dashboard' },
             { key: 'assets',    label: '🗃️ Activos'   },
@@ -196,6 +275,7 @@ function App() {
           ].map(({ key, label }) => (
             <button
               key={key}
+              data-tour={`nav-${key}`}
               className={`btn-primary ${currentView === key ? '' : 'outline'}`}
               onClick={() => handleNavigate(key)}
             >
@@ -219,8 +299,11 @@ function App() {
         {currentView === 'risks' && currentUser?.role !== 'EMPLOYEE' && (
           <RiskAssessment organizationId={currentUser?.organization_id} />
         )}
+        {currentView === 'soa' && (
+          <SoAList organizationId={currentUser?.organization_id} viewParams={viewParams} />
+        )}
         {currentView === 'tasks' && (
-          <TaskBoard organizationId={currentUser?.organization_id} />
+          <TaskBoard organizationId={currentUser?.organization_id} viewParams={viewParams} />
         )}
         {currentView === 'audits' && (
           <AuditList organizationId={currentUser?.organization_id} />
@@ -229,6 +312,14 @@ function App() {
           <EvidenceRepository organizationId={currentUser?.organization_id} />
         )}
       </div>
+
+      {showTour && (
+        <ProductTour
+          steps={TOUR_STEPS.filter(s => currentUser?.role !== 'EMPLOYEE' || s.target !== 'nav-risks')}
+          onNavigate={handleNavigate}
+          onFinish={finishTour}
+        />
+      )}
     </Layout>
   );
 }

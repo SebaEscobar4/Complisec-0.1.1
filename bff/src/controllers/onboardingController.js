@@ -1,5 +1,6 @@
 import { createOrganizationAndAdmin } from '../services/onboardingService.js';
 import { generateTokenForUser } from '../services/authService.js';
+import { isEmailVerified } from '../services/verificationService.js';
 
 /**
  * POST /api/onboarding
@@ -15,6 +16,14 @@ import { generateTokenForUser } from '../services/authService.js';
 export const handleOnboarding = async (req, res, next) => {
   try {
     const { organization, admin } = req.body;
+
+    const verified = await isEmailVerified(admin.email);
+    if (!verified) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Debes verificar tu correo electrónico antes de completar el registro.',
+      });
+    }
 
     const result = await createOrganizationAndAdmin(organization, admin);
 

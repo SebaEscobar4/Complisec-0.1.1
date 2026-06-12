@@ -4,7 +4,7 @@ import React from 'react';
  * Layout general de la aplicación.
  * Muestra el nombre y rol del usuario autenticado si existen.
  */
-const Layout = ({ children, user, onLogout }) => {
+const Layout = ({ children, user, onLogout, onRestartTour }) => {
   const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
@@ -34,6 +34,26 @@ const Layout = ({ children, user, onLogout }) => {
                   {user.role}
                 </span>
               </div>
+              {onRestartTour && (
+                <button
+                  onClick={onRestartTour}
+                  title="Ver tour guiado"
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--accent)',
+                    color: 'var(--accent)',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    padding: '0.3rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={e => e.target.style.background = 'rgba(59,130,246,0.1)'}
+                  onMouseLeave={e => e.target.style.background = 'none'}
+                >
+                  ❓ Tour
+                </button>
+              )}
               <button
                 onClick={onLogout}
                 style={{

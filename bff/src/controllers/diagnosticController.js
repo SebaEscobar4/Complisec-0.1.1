@@ -1,8 +1,8 @@
-import { saveDiagnostic, getDiagnostic, saveOfficerData, getOfficerData } from '../services/diagnosticService.js';
+import { saveDiagnostic, getDiagnostic, saveOfficerData, getOfficerData, applyDiagnosticToSoA } from '../services/diagnosticService.js';
 
 export const handleSaveDiagnostic = async (req, res, next) => {
   try {
-    const { organization_id, risks, officer } = req.body;
+    const { organization_id, risks, officer, control_assessments } = req.body;
 
     if (!organization_id || !Array.isArray(risks)) {
       return res.status(400).json({ error: 'Bad Request', message: 'organization_id y risks son requeridos.' });
@@ -15,7 +15,13 @@ export const handleSaveDiagnostic = async (req, res, next) => {
       await saveOfficerData(organization_id, officer);
     }
 
-    return res.status(201).json({ message: 'Diagnóstico guardado correctamente.' });
+    // Aplicar respuestas del diagnóstico al SoA (estado de implementación por control)
+    let soaMap = {};
+    if (Array.isArray(control_assessments) && control_assessments.length) {
+      soaMap = await applyDiagnosticToSoA(organization_id, control_assessments);
+    }
+
+    return res.status(201).json({ message: 'Diagnóstico guardado correctamente.', data: { soaMap } });
   } catch (error) {
     next(error);
   }

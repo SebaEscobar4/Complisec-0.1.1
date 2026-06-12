@@ -23,7 +23,7 @@ const RiskAssessment = ({ organizationId }) => {
   const [assets, setAssets]               = useState([]);
   const [risks, setRisks]                 = useState([]);
   const [loading, setLoading]             = useState(true);
-  const [selectedAsset, setSelectedAsset] = useState(null);
+  const [creatingRisk, setCreatingRisk]   = useState(false);
   const [editingRisk, setEditingRisk]     = useState(null);
   const [error, setError]                 = useState('');
   const [page, setPage]                   = useState(1);
@@ -50,7 +50,7 @@ const RiskAssessment = ({ organizationId }) => {
     const asset = assets.find(a => a.id === newRisk.asset_id);
     const enriched = { ...newRisk, asset_name: asset?.name || 'Desconocido' };
     setRisks(prev => [enriched, ...prev].sort((a, b) => b.risk_level - a.risk_level));
-    setSelectedAsset(null);
+    setCreatingRisk(false);
     setPage(1);
   };
 
@@ -98,6 +98,11 @@ const RiskAssessment = ({ organizationId }) => {
             Cláusula 6.1.2 — {risks.length} riesgo{risks.length !== 1 ? 's' : ''} registrado{risks.length !== 1 ? 's' : ''}
           </p>
         </div>
+        {!creatingRisk && !editingRisk && (
+          <button className="btn-primary" disabled={assets.length === 0} title={assets.length === 0 ? 'Registra activos primero' : ''} onClick={() => setCreatingRisk(true)}>
+            + Nuevo riesgo
+          </button>
+        )}
       </div>
 
       {error && <div className="alert-error">{error}</div>}
@@ -124,45 +129,13 @@ const RiskAssessment = ({ organizationId }) => {
         </div>
       )}
 
-      <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:'2rem' }}>
-
-        {/* Panel izquierdo: activos */}
-        <div className="glass-panel" style={{ alignSelf:'start' }}>
-          <h3 style={{ margin:'0 0 .5rem' }}>Seleccionar activo</h3>
-          <p className="text-small text-secondary" style={{ marginBottom:'1rem' }}>Elige un activo para registrar una amenaza.</p>
-          {loading ? (
-            <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
-              {[...Array(4)].map((_,i) => (
-                <div key={i} style={{ height:36, borderRadius:8, background:'linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.04) 75%)', backgroundSize:'200% 100%', animation:'shimmer 1.4s infinite' }} />
-              ))}
-            </div>
-          ) : assets.length === 0 ? (
-            <p className="text-small text-secondary" style={{ color:'var(--danger)' }}>No hay activos. Regístralos primero en "Activos".</p>
-          ) : (
-            <ul style={{ listStyle:'none', padding:0, margin:0 }}>
-              {assets.map(asset => (
-                <li key={asset.id} style={{ marginBottom:'.5rem' }}>
-                  <button
-                    className={`btn-primary ${selectedAsset === asset.id ? '' : 'outline'} full-width`}
-                    onClick={() => { setSelectedAsset(selectedAsset === asset.id ? null : asset.id); setEditingRisk(null); }}
-                    style={{ textAlign:'left' }}
-                  >
-                    {asset.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Panel derecho */}
-        <div>
-          {selectedAsset && !editingRisk ? (
+      <div>
+          {creatingRisk && !editingRisk ? (
             <RiskForm
               organizationId={organizationId}
-              assetId={selectedAsset}
+              assets={assets}
               onSuccess={handleRiskCreated}
-              onCancel={() => setSelectedAsset(null)}
+              onCancel={() => setCreatingRisk(false)}
             />
           ) : editingRisk ? (
             <RiskForm
@@ -181,7 +154,11 @@ const RiskAssessment = ({ organizationId }) => {
                   <tbody>{[...Array(4)].map((_,i) => <SkeletonRow key={i} />)}</tbody>
                 </table>
               ) : risks.length === 0 ? (
-                <p className="text-secondary">Aún no se han evaluado riesgos. Selecciona un activo a la izquierda para comenzar.</p>
+                <p className="text-secondary">
+                  {assets.length === 0
+                    ? 'Aún no se han registrado activos. Ve a "Activos" para registrar al menos uno.'
+                    : 'Aún no se han evaluado riesgos. Haz clic en "+ Nuevo riesgo" para comenzar.'}
+                </p>
               ) : (
                 <>
                   <table className="assets-table" data-testid="risks-table">
@@ -233,7 +210,7 @@ const RiskAssessment = ({ organizationId }) => {
                           </td>
                           <td>
                             <div style={{ display:'flex', gap:'.4rem', justifyContent:'flex-end' }}>
-                              <button className="act-btn edit" onClick={() => { setEditingRisk(risk); setSelectedAsset(null); }}>✏️ Editar</button>
+                              <button className="act-btn edit" onClick={() => { setEditingRisk(risk); setCreatingRisk(false); }}>✏️ Editar</button>
                               <button className="act-btn danger" onClick={() => setConfirmDelete(risk.id)}>🗑️ Eliminar</button>
                             </div>
                           </td>
@@ -260,9 +237,8 @@ const RiskAssessment = ({ organizationId }) => {
               )}
             </div>
           )}
-        </div>
       </div>
-      
+
       {planningModalRisk && (
         <RiskPlanningModal 
           risk={planningModalRisk} 

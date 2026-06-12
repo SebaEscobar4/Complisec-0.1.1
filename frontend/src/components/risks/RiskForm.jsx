@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import axios from '../../utils/axiosSetup';
 
-const RiskForm = ({ organizationId, assetId, initialData, onSuccess, onCancel }) => {
+const RiskForm = ({ organizationId, assetId, assets, initialData, onSuccess, onCancel }) => {
   const isEditing = !!initialData;
+  const needsAssetSelect = !assetId && !isEditing;
 
   const [formData, setFormData] = useState({
     organization_id:    organizationId,
-    asset_id:           assetId,
+    asset_id:           assetId || initialData?.asset_id || '',
     threat:             initialData?.threat             || '',
     vulnerability:      initialData?.vulnerability      || '',
     likelihood:         initialData?.likelihood         ?? 3,
@@ -32,6 +33,7 @@ const RiskForm = ({ organizationId, assetId, initialData, onSuccess, onCancel })
 
     // Validación local
     const errs = {};
+    if (needsAssetSelect && !formData.asset_id) errs.asset_id = 'Selecciona un activo.';
     if (!formData.threat.trim())         errs.threat        = 'La amenaza es obligatoria.';
     if (!formData.vulnerability.trim())  errs.vulnerability = 'La vulnerabilidad es obligatoria.';
     if (Object.keys(errs).length) { setFormErrors(errs); setIsSubmitting(false); return; }
@@ -72,6 +74,24 @@ const RiskForm = ({ organizationId, assetId, initialData, onSuccess, onCancel })
           <legend>{isEditing ? `✏️ Editando riesgo: ${initialData.threat}` : 'Evaluar Riesgo'}</legend>
 
           {serverError && <div className="alert-error">{serverError}</div>}
+
+          {needsAssetSelect && (
+            <div className="form-group">
+              <label htmlFor="risk-asset">Activo *</label>
+              <select
+                id="risk-asset" name="asset_id"
+                value={formData.asset_id} onChange={handleChange}
+                className={formErrors.asset_id ? 'input-error' : ''}
+                data-testid="select-risk-asset"
+              >
+                <option value="">Seleccionar activo...</option>
+                {(assets || []).map(a => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+              {formErrors.asset_id && <span className="error-text">{formErrors.asset_id}</span>}
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="risk-threat">Amenaza *</label>
